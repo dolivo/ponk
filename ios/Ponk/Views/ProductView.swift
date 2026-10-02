@@ -82,7 +82,7 @@ struct ProductView: View {
             }
             .padding(.horizontal, 14)
 
-            GlassEffectContainer(spacing: 10) {
+            GlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
                     if p.watch != nil {
                         Button {
@@ -90,20 +90,20 @@ struct ProductView: View {
                         } label: {
                             Label("Přestat hlídat", systemImage: "eye.slash").font(.ponk(16, .semibold))
                         }
-                        .buttonStyle(.glass)
+                        .ponkGlassButton()
                     } else {
                         Button {
                             showWatch = true
                         } label: {
                             Label("Hlídat cenu", systemImage: "eye").font(.ponk(16, .heavy))
                         }
-                        .buttonStyle(.glassProminent)
+                        .ponkProminentButton()
                     }
                     if let url = URL(string: "https://www.bauhaus.cz/\(p.url_path ?? "")") {
                         Link(destination: url) {
                             Label("Na bauhaus.cz", systemImage: "arrow.up.right.square").font(.ponk(16, .semibold))
                         }
-                        .buttonStyle(.glass)
+                        .ponkGlassButton()
                     }
                 }
                 .controlSize(.large)

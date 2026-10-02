@@ -103,7 +103,7 @@ struct FiltersSheet: View {
                         .font(.ponk(18, .heavy))
                         .frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .ponkProminentButton()
                 .controlSize(.large)
                 .padding(.horizontal)
                 .padding(.bottom, 8)

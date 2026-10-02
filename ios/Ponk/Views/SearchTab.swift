@@ -81,7 +81,7 @@ struct CategoryBrowser: View {
                     NavigationLink(value: ResultsRoute(query: query, title: cat2 ?? cat1 ?? "")) {
                         Label("Zobrazit všechny produkty", systemImage: "square.grid.2x2").font(.ponk(16, .semibold))
                     }
-                    .buttonStyle(.glass)
+                    .ponkGlassButton()
                     .padding(.horizontal, 14)
                 }
                 if let data {

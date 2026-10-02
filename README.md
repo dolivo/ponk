@@ -44,7 +44,7 @@ python3 run.py sync   # jednorázová kontrola cen bez serveru
 
 ## iOS aplikace
 
-Nativní appka ve SwiftUI s Liquid Glass (iOS 26+). Sestaví se zdarma v GitHub Actions
+Nativní appka ve SwiftUI pro iOS 18 a novější, na iOS 26 s Liquid Glass. Sestaví se zdarma v GitHub Actions
 a do iPhonu se nahraje z Windows přes Sideloadly. Postup: [docs/ios.md](docs/ios.md).
 
 ## Jak je to postavené

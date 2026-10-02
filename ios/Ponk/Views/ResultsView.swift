@@ -84,14 +84,14 @@ struct ResultsView: View {
 
     /// Plovoucí skleněná tlačítka Filtry a Řazení nad spodní lištou (jako Allegro/Alza).
     private var floatingBar: some View {
-        GlassEffectContainer(spacing: 10) {
+        GlassGroup(spacing: 10) {
             HStack(spacing: 10) {
                 Button { showFilters = true } label: {
                     Label(filterCount > 0 ? "Filtry (\(filterCount))" : "Filtry", systemImage: "line.3.horizontal.decrease")
                         .font(.ponk(16, .semibold))
                         .padding(.horizontal, 4)
                 }
-                .buttonStyle(.glass)
+                .ponkGlassButton()
                 Button { showSort = true } label: {
                     Label(sortOptions.first { $0.key == (query["sort"] ?? "relevance") }?.title ?? "Řazení",
                           systemImage: "arrow.up.arrow.down")
@@ -99,7 +99,7 @@ struct ResultsView: View {
                         .lineLimit(1)
                         .padding(.horizontal, 4)
                 }
-                .buttonStyle(.glass)
+                .ponkGlassButton()
             }
             .controlSize(.large)
         }

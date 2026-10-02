@@ -1,8 +1,8 @@
 # iOS aplikace bez Macu
 
 Appka se sestaví na Macu v cloudu GitHubu (jen kompilace, data zůstávají u tebe)
-a do iPhonu ji nahraješ z Windows. Potřebuješ iPhone s **iOS 26 nebo novějším**
-(iPhone 11 a novější) a bezplatné Apple ID.
+a do iPhonu ji nahraješ z Windows. Potřebuješ iPhone s **iOS 18 nebo novějším**
+(iPhone XS a novější). Liquid Glass se zapne na iOS 26, na starších verzích má appka klasický vzhled. Potřebuješ i bezplatné Apple ID.
 
 ## 1. Sestavení v GitHub Actions (jednou, pak po každé změně kódu)
 

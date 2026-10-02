@@ -51,7 +51,7 @@ struct RootView: View {
                 SearchTab()
             }
         }
-        .tabBarMinimizeBehavior(.onScrollDown)
+        .ponkMinimizingTabBar()
         .task {
             if server.isEmpty { showSetup = true } else { await app.loadMeta() }
         }
@@ -99,7 +99,7 @@ struct ServerSetupView: View {
                 } label: {
                     Text(testing ? "Zkouším spojení…" : "Připojit").font(.ponk(18, .heavy)).frame(maxWidth: .infinity)
                 }
-                .buttonStyle(.glassProminent)
+                .ponkProminentButton()
                 .controlSize(.large)
                 .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty || testing)
                 .padding()

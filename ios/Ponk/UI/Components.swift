@@ -284,7 +284,7 @@ struct OfflineNotice: View {
                 .font(.ponk(14, .semibold, relativeTo: .footnote))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)
-                .glassEffect(.regular.tint(Color.orange.opacity(0.25)), in: .capsule)
+                .ponkGlassCapsule(tint: Color.orange.opacity(0.25))
                 .frame(maxWidth: .infinity)
                 .padding(.vertical, 6)
         }
@@ -301,7 +301,7 @@ struct ErrorState: View {
         } description: {
             Text(message)
         } actions: {
-            Button("Zkusit znovu", action: retry).buttonStyle(.glassProminent)
+            Button("Zkusit znovu", action: retry).ponkProminentButton()
         }
     }
 }
@@ -316,5 +316,47 @@ extension View {
 
     func ponkPage() -> some View {
         background(Color.ponkPage.ignoresSafeArea())
+    }
+}
+
+// --- Liquid Glass jen na iOS 26+, na starších verzích běžné styly ------------
+
+extension View {
+    @ViewBuilder
+    func ponkGlassButton() -> some View {
+        if #available(iOS 26.0, *) { self.buttonStyle(.glass) } else { self.buttonStyle(.bordered) }
+    }
+
+    @ViewBuilder
+    func ponkProminentButton() -> some View {
+        if #available(iOS 26.0, *) { self.buttonStyle(.glassProminent) } else { self.buttonStyle(.borderedProminent) }
+    }
+
+    @ViewBuilder
+    func ponkGlassCapsule(tint: Color) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.tint(tint), in: .capsule)
+        } else {
+            self.background(.thinMaterial, in: Capsule())
+        }
+    }
+
+    @ViewBuilder
+    func ponkMinimizingTabBar() -> some View {
+        if #available(iOS 26.0, *) { self.tabBarMinimizeBehavior(.onScrollDown) } else { self }
+    }
+}
+
+/// Skupina skleněných prvků, které se na iOS 26 slévají dohromady.
+struct GlassGroup<Content: View>: View {
+    var spacing: CGFloat = 8
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if #available(iOS 26.0, *) {
+            GlassEffectContainer(spacing: spacing) { content() }
+        } else {
+            content()
+        }
     }
 }

@@ -21,13 +21,13 @@ struct HomeView: View {
             VStack(alignment: .leading, spacing: 20) {
                 OfflineNotice()
                 ScrollView(.horizontal, showsIndicators: false) {
-                    GlassEffectContainer(spacing: 8) {
+                    GlassGroup(spacing: 8) {
                         HStack(spacing: 8) {
                             ForEach(quick, id: \.title) { route in
                                 NavigationLink(value: route) {
                                     Text(route.title).font(.ponk(15, .semibold, relativeTo: .subheadline))
                                 }
-                                .buttonStyle(.glass)
+                                .ponkGlassButton()
                             }
                         }
                         .padding(.horizontal, 14)
@@ -116,7 +116,7 @@ struct SyncCard: View {
                 Button(st?.running == true ? "Probíhá…" : "Zkontrolovat teď") {
                     Task { await start() }
                 }
-                .buttonStyle(.glass)
+                .ponkGlassButton()
                 .disabled(st?.running == true)
             }
             if let st, st.running {
