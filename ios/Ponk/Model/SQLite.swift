@@ -17,6 +17,9 @@ final class SQLiteDB {
 
     private(set) var handle: OpaquePointer?
     private static let transient = unsafeBitCast(-1, to: sqlite3_destructor_type.self)
+    /// Připravené dotazy se znovu používají (stejné SQL se neparsuje pořád dokola).
+    private var statements: [String: OpaquePointer] = [:]
+    private static let maxCachedStatements = 96
 
     init(path: String, readOnly: Bool = false) throws {
         let flags = readOnly ? SQLITE_OPEN_READONLY : (SQLITE_OPEN_READWRITE | SQLITE_OPEN_CREATE)
@@ -32,6 +35,8 @@ final class SQLiteDB {
     deinit { close() }
 
     func close() {
+        for stmt in statements.values { sqlite3_finalize(stmt) }
+        statements.removeAll()
         if let h = handle { sqlite3_close_v2(h) }
         handle = nil
     }
@@ -43,10 +48,33 @@ final class SQLiteDB {
     }
 
     private func prepare(_ sql: String, _ args: [Any?]) throws -> OpaquePointer? {
-        var stmt: OpaquePointer?
-        guard sqlite3_prepare_v2(handle, sql, -1, &stmt, nil) == SQLITE_OK else {
-            throw DBError.prepare(message, sql)
+        let stmt: OpaquePointer?
+        if let cached = statements[sql] {
+            stmt = cached
+        } else {
+            var fresh: OpaquePointer?
+            guard sqlite3_prepare_v2(handle, sql, -1, &fresh, nil) == SQLITE_OK else {
+                sqlite3_finalize(fresh)
+                throw DBError.prepare(message, sql)
+            }
+            if statements.count >= Self.maxCachedStatements {
+                for s in statements.values { sqlite3_finalize(s) }
+                statements.removeAll()
+            }
+            statements[sql] = fresh
+            stmt = fresh
         }
+        bind(stmt, args)
+        return stmt
+    }
+
+    /// Vrátí dotaz do výchozího stavu, aby šel použít znovu (místo sqlite3_finalize).
+    private func done(_ stmt: OpaquePointer?) {
+        sqlite3_reset(stmt)
+        sqlite3_clear_bindings(stmt)
+    }
+
+    private func bind(_ stmt: OpaquePointer?, _ args: [Any?]) {
         for (i, value) in args.enumerated() {
             let idx = Int32(i + 1)
             switch value {
@@ -59,13 +87,12 @@ final class SQLiteDB {
             default: sqlite3_bind_text(stmt, idx, "\(value!)", -1, SQLiteDB.transient)
             }
         }
-        return stmt
     }
 
     @discardableResult
     func run(_ sql: String, _ args: [Any?] = []) throws -> Int {
         let stmt = try prepare(sql, args)
-        defer { sqlite3_finalize(stmt) }
+        defer { done(stmt) }
         let rc = sqlite3_step(stmt)
         guard rc == SQLITE_DONE || rc == SQLITE_ROW else { throw DBError.step(message) }
         return Int(sqlite3_changes(handle))
@@ -73,7 +100,7 @@ final class SQLiteDB {
 
     func query(_ sql: String, _ args: [Any?] = []) throws -> [[String: Any]] {
         let stmt = try prepare(sql, args)
-        defer { sqlite3_finalize(stmt) }
+        defer { done(stmt) }
         var rows: [[String: Any]] = []
         let n = sqlite3_column_count(stmt)
         let names = (0..<n).map { String(cString: sqlite3_column_name(stmt, $0)) }
@@ -97,13 +124,27 @@ final class SQLiteDB {
 
     func scalar(_ sql: String, _ args: [Any?] = []) throws -> Any? {
         let stmt = try prepare(sql, args)
-        defer { sqlite3_finalize(stmt) }
+        defer { done(stmt) }
         guard sqlite3_step(stmt) == SQLITE_ROW else { return nil }
         switch sqlite3_column_type(stmt, 0) {
         case SQLITE_INTEGER: return Int(sqlite3_column_int64(stmt, 0))
         case SQLITE_FLOAT: return sqlite3_column_double(stmt, 0)
         case SQLITE_TEXT: return String(cString: sqlite3_column_text(stmt, 0))
         default: return nil
+        }
+    }
+
+    /// Stejný příkaz pro mnoho řádků (jedna příprava, jen se mění hodnoty).
+    func runMany(_ sql: String, _ rows: [[Any?]]) throws {
+        for args in rows {
+            let stmt = try prepare(sql, args)
+            let rc = sqlite3_step(stmt)
+            if rc != SQLITE_DONE && rc != SQLITE_ROW {
+                let error = DBError.step(message)
+                done(stmt)
+                throw error
+            }
+            done(stmt)
         }
     }
 

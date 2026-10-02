@@ -1,4 +1,4 @@
-# Ponk
+# ponk for Bauhaus
 
 Neoficiální open-source aplikace pro nabídku **bauhaus.cz**: celý katalog, historie cen,
 skutečné slevy, skladovost na prodejnách včetně čísla regálu a hlídání cen.
@@ -18,6 +18,8 @@ Webová verze běží na tvém počítači. iOS appka počítač nepotřebuje, d
   štítky (výprodej, doprava zdarma…), hodnocení, cena za jednotku, parametry podle kategorie
 - Řazení mimo jiné podle skutečné slevy, posledního zlevnění a ceny za jednotku (Kč/m², Kč/kg)
 - Hlídání cen produktů (i s cílovou cenou) a uložená hledání s počtem novinek
+- **Katalog**: všechny položky na jedné stránce s hledáním, rychlými filtry a čtečkou čárových kódů (iOS)
+- Naposledy hledané a prohlížené, rychlé hlídání podržením dlaždice, fotky s přiblížením (iOS)
 - Světlý / tmavý vzhled podle systému nebo ručně, pět open-source písem na výběr
 
 ## Spuštění (Windows)
@@ -65,6 +67,7 @@ ponk/sync.py         stažení katalogu, historie cen, skladovost po prodejnách
 ponk/search.py       vyhledávání, filtry, fasety, detail produktu
 ponk/server.py       lokální HTTP server (REST API + web) a plánovač denní kontroly
 web/                 webová aplikace bez build kroku (HTML, CSS, JS) + písma
+tools/make_icons.py  ikony aplikace s logem Bauhaus (iOS + web)
 ios/                 SwiftUI aplikace (projekt generuje XcodeGen)
 data/                databáze SQLite (vzniká při prvním spuštění, není v gitu)
 ```

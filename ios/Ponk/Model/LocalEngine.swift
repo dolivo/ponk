@@ -12,6 +12,8 @@ actor LocalEngine {
     static let pageSize = 30
 
     private var db: SQLiteDB?
+    /// Seznamy pro našeptávač (kategorie a značky se mění jen s novými daty).
+    private var suggestIndex: SuggestIndex?
     private let dataPath: String
     private let userPath: String
 
@@ -37,13 +39,17 @@ actor LocalEngine {
         user.close()
         guard FileManager.default.fileExists(atPath: dataPath) else { return }
         let d = try SQLiteDB(path: dataPath)
+        // Rychlejší čtení: větší mezipaměť stránek, dočasné tabulky v paměti, soubor mapovaný do paměti.
+        try? d.exec("PRAGMA cache_size = -16000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 268435456;")
         try d.run("ATTACH DATABASE ? AS u", [userPath])
         db = d
+        suggestIndex = nil
     }
 
     func closeData() {
         db?.close()
         db = nil
+        suggestIndex = nil
     }
 
     /// Po stažení: doplní vyhledávací sloupec a indexy (v souboru nejsou kvůli velikosti).
@@ -53,11 +59,12 @@ actor LocalEngine {
         let cols = try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String }
         if !cols.contains("search") { try d.exec("ALTER TABLE products ADD COLUMN search TEXT") }
         let rows = try d.query("SELECT sku, name, brand, cat2, cat3, ean FROM products")
+        let updates: [[Any?]] = rows.map { r in
+            let text = ["name", "brand", "cat2", "cat3", "sku", "ean"].compactMap { r[$0] as? String }.joined(separator: " ")
+            return [fold(text), r["sku"]]
+        }
         try d.transaction {
-            for r in rows {
-                let text = ["name", "brand", "cat2", "cat3", "sku", "ean"].compactMap { r[$0] as? String }.joined(separator: " ")
-                try d.run("UPDATE products SET search = ? WHERE sku = ?", [fold(text), r["sku"]])
-            }
+            try d.runMany("UPDATE products SET search = ? WHERE sku = ?", updates)
         }
         try d.exec("""
             CREATE INDEX IF NOT EXISTS p_cat ON products(cat1, cat2, cat3);
@@ -72,8 +79,10 @@ actor LocalEngine {
             """)
     }
 
+    private static let czech = Locale(identifier: "cs_CZ")
+
     static func fold(_ s: String) -> String {
-        s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: Locale(identifier: "cs_CZ")).lowercased()
+        s.folding(options: [.diacriticInsensitive, .caseInsensitive], locale: czech).lowercased()
     }
 
     // MARK: - směrování (stejné cesty jako REST API serveru)
@@ -99,7 +108,9 @@ actor LocalEngine {
         case ("POST", "watch"):
             let sku = body?["sku"] as? String ?? ""
             let price = try data().scalar("SELECT price FROM products WHERE sku = ?", [sku])
-            try user.run("INSERT OR REPLACE INTO \(t("watch")) VALUES(?, ?, ?, ?, NULL)",
+            // keep: rychlé hlídání z nabídky dlaždice nepřepíše už hlídaný produkt (datum a cenu od kdy)
+            let verb = (body?["keep"] as? Bool ?? false) ? "INSERT OR IGNORE" : "INSERT OR REPLACE"
+            try user.run("\(verb) INTO \(t("watch")) VALUES(?, ?, ?, ?, NULL)",
                          [sku, Self.today(), price, body?["target"] as? Double ?? (body?["target"] as? Int).map(Double.init)])
             return ["ok": true]
         case ("DELETE", "watch"):
@@ -126,6 +137,7 @@ actor LocalEngine {
         case "home": return try home()
         case "search": return try search(query)
         case "suggest": return try suggest(query["q"] ?? "")
+        case "items": return ["items": try itemsBySKU(many(query, "skus"))]
         case "categories": return try categories(query)
         case "product":
             guard parts.count > 1, let p = try product(parts[1]) else { throw EngineError.notFound }
@@ -168,12 +180,14 @@ actor LocalEngine {
         (try? db?.scalar("SELECT value FROM info WHERE key = ?", [key])) as? String
     }
 
-    static func today() -> String {
+    private static let dayFormatter: DateFormatter = {
         let f = DateFormatter()
         f.locale = Locale(identifier: "en_US_POSIX")
         f.dateFormat = "yyyy-MM-dd"
-        return f.string(from: Date())
-    }
+        return f
+    }()
+
+    static func today() -> String { dayFormatter.string(from: Date()) }
 
     // MARK: - meta
 
@@ -233,8 +247,7 @@ actor LocalEngine {
         if let v = q["rating"].flatMap(Int.init) { w.append("p.rating >= ?"); a.append(v * 20) }
         if let v = q["drop_days"].flatMap(Int.init) {
             let since = Calendar.current.date(byAdding: .day, value: -v, to: Date()) ?? Date()
-            let f = DateFormatter(); f.locale = Locale(identifier: "en_US_POSIX"); f.dateFormat = "yyyy-MM-dd"
-            w.append("p.price_changed_at >= ? AND p.drop_pct > 0"); a.append(f.string(from: since))
+            w.append("p.price_changed_at >= ? AND p.drop_pct > 0"); a.append(Self.dayFormatter.string(from: since))
         }
         if let v = q["drop_min"].flatMap(Double.init) { w.append("p.drop_pct >= ?"); a.append(v) }
         if q["unit"] == "1" { w.append("p.unit_price IS NOT NULL") }
@@ -319,9 +332,12 @@ actor LocalEngine {
         let pr = try db.query("SELECT MIN(p.price) AS min, MAX(p.price) AS max FROM products p WHERE \(w)", a).first ?? [:]
         f["price"] = ["min": pr["min"] ?? NSNull(), "max": pr["max"] ?? NSNull()]
         (w, a) = buildWhere(q, skip: ["label"])
+        // všechny štítky jedním průchodem tabulkou místo dotazu pro každý štítek
+        let sums = Self.labelOrder.enumerated().map { i, key in "SUM(p.labels LIKE '%,\(key),%') AS l\(i)" }.joined(separator: ", ")
+        let counts = try db.query("SELECT \(sums) FROM products p WHERE \(w)", a).first ?? [:]
         var labels: [[String: Any]] = []
-        for key in Self.labelOrder {
-            let c = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w) AND p.labels LIKE ?", a + ["%,\(key),%"]) as? Int) ?? 0
+        for (i, key) in Self.labelOrder.enumerated() {
+            let c = counts["l\(i)"] as? Int ?? 0
             if c > 0 { labels.append(["value": key, "label": Self.labels[key]!, "count": c]) }
         }
         f["labels"] = labels
@@ -394,23 +410,40 @@ actor LocalEngine {
         return ["level": "cat1", "values": try db.query("SELECT cat1 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE cat1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC")]
     }
 
+    private struct SuggestIndex {
+        struct Category { let row: [String: Any]; let folded: String }
+        let categories: [Category]
+        let brands: [(name: String, folded: String)]
+    }
+
+    /// Kategorie a značky se při psaní neprochází v databázi znovu a znovu – načtou se jednou po otevření dat.
+    private func loadSuggestIndex(_ db: SQLiteDB) throws -> SuggestIndex {
+        if let suggestIndex { return suggestIndex }
+        var cats: [SuggestIndex.Category] = []
+        for lvl in ["cat3", "cat2"] {
+            let group = lvl == "cat3" ? "cat1, cat2, cat3" : "cat1, cat2"
+            for r in try db.query("SELECT cat1, cat2, \(lvl == "cat3" ? "cat3" : "NULL AS cat3"), COUNT(*) AS count FROM products WHERE \(lvl) IS NOT NULL GROUP BY \(group)") {
+                guard let name = r[lvl] as? String else { continue }
+                cats.append(.init(row: ["cat1": r["cat1"] ?? NSNull(), "cat2": r["cat2"] ?? NSNull(), "cat3": r["cat3"] ?? NSNull(),
+                                        "name": name, "count": r["count"] ?? 0], folded: Self.fold(name)))
+            }
+        }
+        let brands = try db.query("SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL")
+            .compactMap { $0["brand"] as? String }.map { ($0, Self.fold($0)) }
+        let index = SuggestIndex(categories: cats, brands: brands)
+        suggestIndex = index
+        return index
+    }
+
     private func suggest(_ text: String) throws -> [String: Any] {
         let db = try data()
         let t = Self.fold(text).trimmingCharacters(in: .whitespaces)
         guard t.count >= 2 else { return ["products": [], "categories": [], "brands": []] }
         let products = try db.query("SELECT sku, name, price, image FROM products WHERE search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
-        var cats: [[String: Any]] = []
-        for lvl in ["cat3", "cat2"] where cats.count < 5 {
-            let group = lvl == "cat3" ? "cat1, cat2, cat3" : "cat1, cat2"
-            for r in try db.query("SELECT cat1, cat2, \(lvl == "cat3" ? "cat3" : "NULL AS cat3"), COUNT(*) AS count FROM products WHERE \(lvl) IS NOT NULL GROUP BY \(group)") {
-                guard let name = r[lvl] as? String, Self.fold(name).contains(t), cats.count < 5 else { continue }
-                cats.append(["cat1": r["cat1"] ?? NSNull(), "cat2": r["cat2"] ?? NSNull(), "cat3": r["cat3"] ?? NSNull(),
-                             "name": name, "count": r["count"] ?? 0])
-            }
-        }
-        let brands = try db.query("SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL")
-            .compactMap { $0["brand"] as? String }.filter { Self.fold($0).contains(t) }.prefix(4)
-        return ["products": products, "categories": cats, "brands": Array(brands)]
+        let index = try loadSuggestIndex(db)
+        let cats = index.categories.lazy.filter { $0.folded.contains(t) }.prefix(5).map(\.row)
+        let brands = index.brands.lazy.filter { $0.folded.contains(t) }.prefix(4).map(\.name)
+        return ["products": products, "categories": Array(cats), "brands": Array(brands)]
     }
 
     // MARK: - úvod, detail, hlídané
@@ -461,6 +494,16 @@ actor LocalEngine {
             """, [sku])
         if let w = try db.query("SELECT sku, added, added_price, target FROM u.watch WHERE sku = ?", [sku]).first { p["watch"] = w }
         return p
+    }
+
+    /// Produkty podle kódů ve stejném pořadí (naposledy prohlížené).
+    private func itemsBySKU(_ skus: [String]) throws -> [[String: Any]] {
+        guard !skus.isEmpty else { return [] }
+        let list = Array(skus.prefix(50))
+        let rows = try data().query("SELECT \(Self.itemCols) FROM products p WHERE p.sku IN (\(Array(repeating: "?", count: list.count).joined(separator: ",")))", list)
+        let order = Dictionary(list.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
+        let sorted = rows.sorted { (order[$0["sku"] as? String ?? ""] ?? 0) < (order[$1["sku"] as? String ?? ""] ?? 0) }
+        return try itemsFor(sorted, store: setting("store"))
     }
 
     private func watchItems() throws -> [[String: Any]] {

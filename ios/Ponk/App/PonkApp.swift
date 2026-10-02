@@ -6,6 +6,10 @@ struct PonkApp: App {
     @AppStorage("theme") private var theme = "system"
     @AppStorage("font") private var font = PonkFont.barlow.rawValue
 
+    init() {
+        ImageCache.configureURLCache()
+    }
+
     var body: some Scene {
         WindowGroup {
             RootView()
@@ -21,27 +25,29 @@ struct PonkApp: App {
     }
 }
 
-enum AppTab: Hashable {
-    case home, sale, watch, more, search
+enum AppTab: String, Hashable {
+    case catalog, home, watch, more, search
 }
 
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
-    @State private var tab: AppTab = .home
+    /// Poslední otevřená záložka se pamatuje i po zavření aplikace.
+    @SceneStorage("tab") private var tab: AppTab = .catalog
     @State private var started = false
     @State private var showSetup = false
 
     var body: some View {
         TabView(selection: $tab) {
-            Tab("Domů", systemImage: "house", value: AppTab.home) {
-                NavigationStack { HomeView().ponkDestinations() }
-            }
-            Tab("Výprodej", systemImage: "tag", value: AppTab.sale) {
+            // Hlavní stránka: všechny položky najednou s hledáním a filtry.
+            Tab("Katalog", systemImage: "square.grid.2x2", value: AppTab.catalog) {
                 NavigationStack {
-                    ResultsView(route: ResultsRoute(query: ["label": "sell_off", "sort": "discount"], title: "Výprodej"))
+                    ResultsView(route: ResultsRoute(query: [:], title: "Katalog"), catalog: true)
                         .ponkDestinations()
                 }
+            }
+            Tab("Slevy", systemImage: "tag", value: AppTab.home) {
+                NavigationStack { HomeView().ponkDestinations() }
             }
             Tab("Hlídané", systemImage: "eye", value: AppTab.watch) {
                 NavigationStack { WatchView().ponkDestinations() }
@@ -89,6 +95,7 @@ struct DataSetupView: View {
     var body: some View {
         NavigationStack {
             VStack(alignment: .leading, spacing: 18) {
+                BrandHeader().padding(.horizontal, -14)
                 Text("Ponk potřebuje stáhnout katalog Bauhausu s cenami a sklady. Je to asi 5 MB a další dny se data stahují sama, nejlépe na Wi-Fi.")
                     .font(.ponk(17))
                 Text("Data připravuje každé ráno GitHub. Počítač ani server nepotřebuješ, hlídané produkty zůstávají jen v telefonu.")

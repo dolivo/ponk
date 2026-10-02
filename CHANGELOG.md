@@ -3,6 +3,24 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.4.0 – ponk for Bauhaus
+- Nový název **ponk for Bauhaus**, logo Bauhaus v aplikaci (úvod, Více) i v ikoně na ploše
+  (iOS i web). Ikony se generují skriptem `tools/make_icons.py`.
+- **Katalog** jako hlavní stránka: všechny položky najednou, hledání přímo v seznamu,
+  rychlé filtry (Výprodej, Skladem na mé prodejně, Skladem online, Sleva 30 %+, Zlevněno za 7 dní)
+  a k tomu všechny dosavadní filtry a řazení. Na webu záložka Katalog.
+- Liquid Glass: jemný přechod v barvě stránky pod horní lištou, spodní lištou a plovoucími
+  tlačítky – text a ikony na skle jsou čitelné i nad fotkami. Tlačítka na skle mají text v barvě písma.
+- iOS – pohodlí: čtečka čárových kódů (EAN) v Katalogu, poslední hledání, naposledy prohlížené
+  produkty na stránce Slevy, podržení dlaždice → Hlídat cenu / Kopírovat název / kód,
+  fotky produktu na celou obrazovku s přiblížením, kód a EAN jde zkopírovat, haptická odezva,
+  pull-to-refresh ve výsledcích, aplikace si pamatuje poslední záložku.
+- iOS – rychlost: obrázky v mezipaměti (paměť + 512 MB disk) a dekódované mimo hlavní vlákno
+  v plném rozlišení, znovupoužívané SQL dotazy, počty pro filtry se počítají jen při otevřených
+  filtrech, štítky jedním dotazem místo sedmi, našeptávač bez opakovaného procházení kategorií
+  a značek, rychlejší příprava stažených dat (jeden připravený příkaz pro 94 000 řádků).
+- Záložka Výprodej je nově rychlý filtr v Katalogu a odkaz na stránce Slevy (dřív Domů).
+
 ## 0.3.0
 - iPhone už nepotřebuje počítač. Ceny celého katalogu každé ráno kontroluje GitHub Actions
   (`.github/workflows/data.yml`) a zveřejní štíhlou databázi (~5 MB) ve vydání „data“.

@@ -8,6 +8,8 @@ let sortOptions: [(key: String, title: String)] = [
 
 struct ResultsView: View {
     let route: ResultsRoute
+    /// Katalog: hlavní stránka se všemi položkami, hledáním, rychlými filtry a čtečkou kódů.
+    var catalog = false
     @Environment(AppModel.self) private var app
     @State private var query: Query
     @State private var result: SearchResponse?
@@ -17,10 +19,13 @@ struct ResultsView: View {
     @State private var showFilters = false
     @State private var showSort = false
     @State private var showSave = false
+    @State private var showScanner = false
+    @State private var text = ""
     @AppStorage("listMode") private var listMode = false
 
-    init(route: ResultsRoute) {
+    init(route: ResultsRoute, catalog: Bool = false) {
         self.route = route
+        self.catalog = catalog
         _query = State(initialValue: route.query)
     }
 
@@ -35,7 +40,8 @@ struct ResultsView: View {
                         .padding(.horizontal, 14)
                         .padding(.bottom, 6)
                 }
-                ActiveChips(query: $query)
+                if catalog { QuickFilters(query: $query, filters: quickFilters) }
+                ActiveChips(query: $query, hidden: Set(quickFilters.filter { $0.isOn(query) }.map(\.id)))
                 if !items.isEmpty {
                     Shelf(items: items, list: listMode) { Task { await loadMore() } }
                     if loadingMore { ProgressView().frame(maxWidth: .infinity).padding(20) }
@@ -50,9 +56,15 @@ struct ResultsView: View {
                 Color.clear.frame(height: 70) // místo pro plovoucí tlačítka
             }
         }
-        .ponkPage()
+        .ponkPage(bottomFade: 84)
         .navigationTitle(route.title)
         .toolbar {
+            if catalog {
+                ToolbarItem(placement: .topBarLeading) {
+                    Button { showScanner = true } label: { Image(systemName: "barcode.viewfinder") }
+                        .accessibilityLabel("Načíst čárový kód")
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button { listMode.toggle() } label: {
                     Image(systemName: listMode ? "square.grid.2x2" : "list.bullet")
@@ -76,7 +88,16 @@ struct ResultsView: View {
             SaveSearchSheet(query: query, suggestedName: route.title)
                 .presentationDetents([.height(260)])
         }
+        .sheet(isPresented: $showScanner) {
+            ScannerSheet { code in text = code }
+        }
+        .modifier(CatalogSearch(enabled: catalog, text: $text, query: $query))
         .task(id: query) { await load() }
+        .refreshable { await load() }
+        // fasety (počty pro filtry) se počítají, až když je opravdu potřeba
+        .onChange(of: showFilters) { _, open in
+            if open, result?.facets == nil { Task { await loadFacets() } }
+        }
         .onChange(of: app.meta?.products) { _, _ in Task { await load() } }
         .task {
             if let id = route.savedID { try? await app.api.send("DELETE", "saved/\(id)/seen") }
@@ -111,10 +132,26 @@ struct ResultsView: View {
         query.keys.filter { !["q", "sort", "cat1", "page"].contains($0) }.count
     }
 
+    private var quickFilters: [QuickFilter] {
+        guard catalog else { return [] }
+        let store = app.myStore ?? "888"
+        return [
+            .multi(id: "labelsell_off", title: "Výprodej", key: "label", value: "sell_off"),
+            .single(id: "store", title: "Skladem: \(app.storeName(store))", key: "store", value: store),
+            .single(id: "online", title: "Skladem online", key: "online", value: "1"),
+            .single(id: "disc", title: "Sleva 30 %+", key: "disc", value: "30"),
+            .single(id: "drop", title: "Zlevněno za 7 dní", key: "drop_days", value: "7"),
+        ]
+    }
+
     private func load() async {
         error = nil
         do {
-            let r = try await app.api.get("search", query, as: SearchResponse.self)
+            var q = query
+            // Fasety jsou nejdražší část hledání – bez otevřených filtrů je nepotřebujeme.
+            if !showFilters { q["facets"] = "0" }
+            let r = try await app.api.get("search", q, as: SearchResponse.self)
+            guard !Task.isCancelled else { return } // mezitím se změnil dotaz
             result = r
             items = r.items
         } catch is CancellationError {
@@ -122,6 +159,15 @@ struct ResultsView: View {
             if (error as? URLError)?.code == .cancelled { return }
             self.error = error.localizedDescription
         }
+    }
+
+    /// Doplní jen fasety; načtené stránky výsledků zůstanou.
+    private func loadFacets() async {
+        guard let r = try? await app.api.get("search", query, as: SearchResponse.self) else { return }
+        let current = result
+        result = SearchResponse(total: r.total, page: current?.page ?? r.page, pages: current?.pages ?? r.pages,
+                                items: [], facets: r.facets)
+        if current == nil { items = r.items }
     }
 
     private func loadMore() async {
@@ -133,7 +179,7 @@ struct ResultsView: View {
         q["facets"] = "0"
         if let next = try? await app.api.get("search", q, as: SearchResponse.self) {
             items += next.items
-            result = SearchResponse(total: next.total, page: next.page, pages: next.pages, items: [], facets: r.facets)
+            result = SearchResponse(total: next.total, page: next.page, pages: next.pages, items: [], facets: result?.facets ?? r.facets)
         }
     }
 }
@@ -141,6 +187,8 @@ struct ResultsView: View {
 /// Aktivní filtry jako "čipy" – klepnutím se filtr zruší.
 struct ActiveChips: View {
     @Binding var query: Query
+    /// Čipy, které už ukazují rychlé filtry nahoře.
+    var hidden: Set<String> = []
     @Environment(AppModel.self) private var app
 
     private struct Chip: Identifiable {
@@ -176,7 +224,7 @@ struct ActiveChips: View {
         if let r = query["rating"] { out.append(Chip(id: "rating", title: "Hodnocení \(r)+") { $0["rating"] = nil }) }
         if query["unit"] != nil { out.append(Chip(id: "unit", title: "S cenou za jednotku") { $0["unit"] = nil }) }
         for key in query.keys.sorted() where key.hasPrefix("a_") { multi(key) { $0 } }
-        return out
+        return out.filter { !hidden.contains($0.id) }
     }
 
     var body: some View {
@@ -205,6 +253,107 @@ struct ActiveChips: View {
                 .padding(.bottom, 10)
             }
         }
+    }
+}
+
+/// Rychlý filtr v katalogu: jedno klepnutí zapne, druhé vypne.
+struct QuickFilter: Identifiable {
+    let id: String
+    let title: String
+    let isOn: (Query) -> Bool
+    let toggle: (inout Query) -> Void
+
+    static func single(id: String, title: String, key: String, value: String) -> QuickFilter {
+        QuickFilter(id: id, title: title,
+                    isOn: { $0[key] == value },
+                    toggle: { q in q[key] = q[key] == value ? nil : value })
+    }
+
+    /// Hodnota v seznamu odděleném „|“ (např. štítky).
+    static func multi(id: String, title: String, key: String, value: String) -> QuickFilter {
+        func values(_ q: Query) -> [String] { (q[key] ?? "").split(separator: "|").map(String.init) }
+        return QuickFilter(id: id, title: title,
+                           isOn: { values($0).contains(value) },
+                           toggle: { q in
+                               var v = values(q)
+                               if let i = v.firstIndex(of: value) { v.remove(at: i) } else { v.append(value) }
+                               q[key] = v.isEmpty ? nil : v.joined(separator: "|")
+                           })
+    }
+}
+
+struct QuickFilters: View {
+    @Binding var query: Query
+    let filters: [QuickFilter]
+
+    var body: some View {
+        ScrollView(.horizontal, showsIndicators: false) {
+            HStack(spacing: 6) {
+                ForEach(filters) { f in
+                    let on = f.isOn(query)
+                    Button { f.toggle(&query) } label: {
+                        HStack(spacing: 5) {
+                            if on { Image(systemName: "checkmark").font(.caption.bold()) }
+                            Text(f.title)
+                        }
+                        .font(.ponk(15, .semibold, relativeTo: .subheadline))
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 7)
+                        .foregroundStyle(on ? Color.ponkSurface : Color.ponkInk)
+                        .background(on ? Color.ponkInk : Color.ponkSurface, in: Capsule())
+                        .overlay(Capsule().strokeBorder(on ? Color.clear : Color.ponkLine))
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityAddTraits(on ? .isSelected : [])
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
+        }
+        .sensoryFeedback(.selection, trigger: filters.map { $0.isOn(query) })
+    }
+}
+
+/// Hledání v katalogu: píše se rovnou do dotazu (s krátkou pauzou), nabízí poslední hledání.
+private struct CatalogSearch: ViewModifier {
+    let enabled: Bool
+    @Binding var text: String
+    @Binding var query: Query
+    @AppStorage(Recents.searchesKey) private var recent = ""
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if enabled {
+            content
+                .searchable(text: $text, placement: .navigationBarDrawer(displayMode: .always), prompt: "Hledat ve všech položkách")
+                .searchSuggestions {
+                    if text.isEmpty {
+                        ForEach(Recents.list(recent), id: \.self) { s in
+                            Label(s, systemImage: "clock.arrow.circlepath")
+                                .foregroundStyle(Color.ponkInk)
+                                .searchCompletion(s)
+                        }
+                    }
+                }
+                .onSubmit(of: .search) {
+                    recent = Recents.adding(text, to: recent)
+                    apply(text)
+                }
+                .task(id: text) {
+                    // krátká pauza při psaní, ať se nehledá po každém písmenu
+                    if !text.isEmpty { try? await Task.sleep(for: .milliseconds(300)) }
+                    guard !Task.isCancelled else { return }
+                    apply(text)
+                }
+        } else {
+            content
+        }
+    }
+
+    private func apply(_ t: String) {
+        let q = t.trimmingCharacters(in: .whitespaces)
+        let value: String? = q.isEmpty ? nil : q
+        if query["q"] != value { query["q"] = value }
     }
 }
 

@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 // --- cenovka: hlavní výrazový prvek, stejný jako na webu --------------------
 
@@ -49,14 +50,7 @@ struct ProductImage: View {
         Color.white
             .aspectRatio(1, contentMode: .fit)
             .overlay {
-                AsyncImage(url: productImageURL(path, w: w, h: h)) { phase in
-                    switch phase {
-                    case .success(let image): image.resizable().scaledToFit()
-                    case .failure: Image(systemName: "photo").font(.title2).foregroundStyle(.gray)
-                    default: Color.clear
-                    }
-                }
-                .padding(8)
+                CachedImage(url: productImageURL(path, w: w, h: h)).padding(8)
             }
             .clipped()
     }
@@ -210,6 +204,7 @@ struct Shelf: View {
                     ForEach(items) { item in
                         NavigationLink(value: ProductRoute(sku: item.sku)) { ProductRow(item: item) }
                             .buttonStyle(.plain)
+                            .productMenu(item)
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
@@ -218,6 +213,7 @@ struct Shelf: View {
                     ForEach(items) { item in
                         NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item) }
                             .buttonStyle(.plain)
+                            .productMenu(item)
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
@@ -238,6 +234,7 @@ struct Rail: View {
                 ForEach(items) { item in
                     NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item) }
                         .buttonStyle(.plain)
+                        .productMenu(item)
                         .frame(width: 172)
                         .frame(maxHeight: .infinity)
                 }
@@ -314,8 +311,72 @@ extension View {
             .navigationDestination(for: CategoryRoute.self) { CategoryBrowser(cat1: $0.cat1, cat2: $0.cat2) }
     }
 
-    func ponkPage() -> some View {
+    /// Pozadí stránky + jemný přechod pod skleněnými lištami (viz GlassScrim).
+    /// - Parameter bottomFade: výška přechodu nad spodní lištou (víc u plovoucích tlačítek).
+    func ponkPage(bottomFade: CGFloat = 28) -> some View {
         background(Color.ponkPage.ignoresSafeArea())
+            .overlay { GlassScrim(bottom: bottomFade) }
+    }
+
+    /// Dlouhé podržení dlaždice: rychlé hlídání a kopírování.
+    func productMenu(_ item: Item) -> some View {
+        modifier(ProductMenu(item: item))
+    }
+}
+
+/// Liquid Glass je průhledné, takže text a ikony na liště splývají s fotkami pod nimi.
+/// Přechod v barvě stránky pod horní a spodní lištou drží kontrast, aniž by zakryl obsah.
+struct GlassScrim: View {
+    var top: CGFloat = 26
+    var bottom: CGFloat = 28
+    @Environment(\.accessibilityReduceTransparency) private var reduceTransparency
+
+    private func fade(_ strength: Double, reversed: Bool) -> LinearGradient {
+        // „easing“ přechod: bez viditelné hrany, kde gradient končí
+        let curve: [(CGFloat, Double)] = [(0, 1), (0.25, 0.86), (0.5, 0.56), (0.75, 0.22), (1, 0)]
+        let stops = curve.map { loc, a in
+            Gradient.Stop(color: Color.ponkPage.opacity(a * strength), location: reversed ? 1 - loc : loc)
+        }.sorted { $0.location < $1.location }
+        return LinearGradient(stops: stops, startPoint: .top, endPoint: .bottom)
+    }
+
+    var body: some View {
+        let strength = reduceTransparency ? 1.0 : 0.88
+        GeometryReader { g in
+            VStack(spacing: 0) {
+                fade(strength, reversed: false)
+                    .frame(height: g.safeAreaInsets.top + top)
+                Spacer(minLength: 0)
+                fade(strength, reversed: true)
+                    .frame(height: g.safeAreaInsets.bottom + bottom)
+            }
+        }
+        .ignoresSafeArea(.container)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+}
+
+private struct ProductMenu: ViewModifier {
+    let item: Item
+    @Environment(AppModel.self) private var app
+    @State private var watched = 0
+
+    func body(content: Content) -> some View {
+        content
+            .contextMenu {
+                Button { Task { await watch() } } label: { Label("Hlídat cenu", systemImage: "eye") }
+                Button { UIPasteboard.general.string = item.name } label: { Label("Kopírovat název", systemImage: "doc.on.doc") }
+                Button { UIPasteboard.general.string = item.sku } label: { Label("Kopírovat kód \(item.sku)", systemImage: "number") }
+            }
+            .sensoryFeedback(.success, trigger: watched)
+    }
+
+    private func watch() async {
+        // keep: už hlídaný produkt si ponechá původní datum a cenu
+        try? await app.api.send("POST", "watch", body: ["sku": item.sku, "target": NSNull(), "keep": true])
+        await app.loadMeta()
+        watched += 1
     }
 }
 
@@ -324,7 +385,12 @@ extension View {
 extension View {
     @ViewBuilder
     func ponkGlassButton() -> some View {
-        if #available(iOS 26.0, *) { self.buttonStyle(.glass) } else { self.buttonStyle(.bordered) }
+        // Text v barvě písma (ne červený odstín) je na skle čitelnější.
+        if #available(iOS 26.0, *) {
+            self.buttonStyle(.glass).foregroundStyle(Color.ponkInk)
+        } else {
+            self.buttonStyle(.bordered)
+        }
     }
 
     @ViewBuilder
