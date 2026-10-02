@@ -1,0 +1,68 @@
+# Denní kontrola cen bez počítače: GitHub každé ráno projde celý katalog bauhaus.cz,
+# doplní historii cen a zveřejní štíhlou databázi pro iPhone ve vydání „data“.
+# Obsahuje jen veřejné ceny a sklady, žádné osobní údaje (hlídané produkty jsou jen v telefonu).
+name: Data (denní kontrola cen)
+
+on:
+  schedule:
+    - cron: "20 3 * * *"   # 5:20 letního času / 4:20 zimního
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: data
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 150
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Navázat na včerejší historii cen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p data
+          if gh release download data -p 'ponk-full.sqlite.xz' -D /tmp 2>/dev/null; then
+            xz -dc /tmp/ponk-full.sqlite.xz > data/ponk.sqlite3
+            echo "Navazuji na předchozí historii cen."
+          else
+            echo "První běh – historie cen začíná dnes."
+          fi
+
+      - name: Kontrola cen (celý katalog + sklad na prodejnách)
+        run: python3 run.py sync
+
+      - name: Připravit data pro telefon
+        run: |
+          python3 -m ponk.export_mobile data/ponk.sqlite3 out
+          xz -T0 -6 -c data/ponk.sqlite3 > out/ponk-full.sqlite.xz
+          ls -la out
+
+      - name: Zveřejnit ve vydání „data“
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release view data >/dev/null 2>&1 || gh release create data \
+            --title "Data pro aplikaci (aktualizuje se každé ráno)" \
+            --notes "Automaticky z GitHub Actions. Jen veřejné ceny a sklady z bauhaus.cz." --latest=false
+          # status.json až nakonec, aby telefon nikdy neviděl odkaz na nehotový soubor
+          gh release upload data out/ponk-full.sqlite.xz out/ponk-mobile.sqlite.xz out/ponk-mobile.sqlite.deflate --clobber
+          gh release upload data out/status.json --clobber
+
+      - name: Udržet plánovač aktivní
+        run: |
+          # GitHub vypíná plánované úlohy v repozitářích bez aktivity; jeden malý commit denně to řeší.
+          cp out/status.json /tmp/status.json
+          git config user.name "ponk-bot"
+          git config user.email "ponk-bot@users.noreply.github.com"
+          git checkout -q --orphan data-status
+          git rm -rfq --cached . >/dev/null
+          cp /tmp/status.json status.json
+          git add status.json
+          git commit -qm "Data $(date -u +%F)"
+          git push -fq origin data-status
