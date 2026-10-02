@@ -25,12 +25,11 @@ Když sestavení skončí chybou, stáhni artefakt `xcodebuild-log` a pošli ho 
 3. Přetáhni `Ponk.ipa` do Sideloadly, zadej Apple ID a klikni **Start**.
 4. Na iPhonu zapni **Nastavení → Soukromí a zabezpečení → Režim vývojáře** (telefon se restartuje).
 5. **Nastavení → Obecné → Správa VPN a zařízení** → tvoje Apple ID → *Důvěřovat*.
-6. Otevři Ponk a zadej adresu serveru, kterou vypisuje `start.bat`
-   (řádek „v mobilu (Wi-Fi)“). Potvrď dotaz na přístup k místní síti.
+6. Otevři Ponk a klepni na **Stáhnout data** (asi 5 MB). Počítač ani server nejsou potřeba.
 
 ## Omezení bezplatného Apple ID
 
 - Podpis platí **7 dní**, pak appku v Sideloadly znovu nahraj (data v ní zůstanou).
   Sideloadly umí podpis obnovovat automaticky, když běží na počítači ve stejné Wi-Fi.
 - Najednou mohou být takto nainstalované nejvýš 3 aplikace.
-- Mimo domácí Wi-Fi appka ukazuje poslední stažená data s upozorněním „Offline“.
+- Nová data si appka stahuje sama, výchozí jen na Wi-Fi (změníš ve Více).

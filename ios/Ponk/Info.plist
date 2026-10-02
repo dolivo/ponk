@@ -17,10 +17,10 @@
 	<dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
 	<key>UISupportedInterfaceOrientations</key>
 	<array><string>UIInterfaceOrientationPortrait</string></array>
-	<key>NSAppTransportSecurity</key>
-	<dict><key>NSAllowsArbitraryLoads</key><true/></dict>
-	<key>NSLocalNetworkUsageDescription</key>
-	<string>Ponk se připojuje k serveru Ponk na tvém počítači v domácí síti.</string>
+	<key>UIBackgroundModes</key>
+	<array><string>fetch</string></array>
+	<key>BGTaskSchedulerPermittedIdentifiers</key>
+	<array><string>cz.ponk.app.refresh</string></array>
 	<key>UIAppFonts</key>
 	<array>
 		<string>BarlowSemiCondensed-Regular.ttf</string><string>BarlowSemiCondensed-SemiBold.ttf</string><string>BarlowSemiCondensed-ExtraBold.ttf</string>

@@ -74,7 +74,7 @@ struct HomeView: View {
         .ponkPage()
         .navigationTitle("Ponk")
         .refreshable { await load() }
-        .task { await load() }
+        .task(id: app.meta?.products ?? -1) { await load() }
     }
 
     private func load() async {
@@ -98,29 +98,28 @@ struct SyncCard: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .center) {
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(st?.running == true ? (st?.phase ?? "") : "Kontrola cen")
+                    Text(st?.running == true ? (st?.phase ?? "") : "Data z GitHubu")
                         .font(.ponk(17, .heavy, relativeTo: .headline))
                     Group {
                         if let st, st.running {
-                            Text("\(money(Double(st.done))) z \(money(Double(st.total)))")
-                        } else if let msg = st?.message, !msg.isEmpty {
-                            Text(msg)
+                            Text("Chvilku to potrvá…")
                         } else {
-                            Text("Naposledy \(shortDayTime(app.meta?.last_run?.finished))")
+                            Text("Ceny zkontrolovány \(shortDayTime(app.meta?.last_run?.finished))")
+                            if let msg = st?.message, !msg.isEmpty { Text(msg) }
                         }
                     }
                     .font(.ponk(14, relativeTo: .footnote))
                     .foregroundStyle(Color.ponkMuted)
                 }
                 Spacer()
-                Button(st?.running == true ? "Probíhá…" : "Zkontrolovat teď") {
+                Button(st?.running == true ? "Stahuji…" : "Stáhnout nová") {
                     Task { await start() }
                 }
                 .ponkGlassButton()
                 .disabled(st?.running == true)
             }
             if let st, st.running {
-                ProgressView(value: st.progress).tint(.ponkRed)
+                ProgressView().tint(.ponkRed)
             }
         }
         .padding(14)

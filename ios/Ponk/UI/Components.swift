@@ -273,14 +273,14 @@ extension SectionHeader where Trailing == EmptyView {
     }
 }
 
-/// Upozornění, že server není dostupný a ukazujeme uložená data.
+/// Upozornění, že data v telefonu jsou starší než dva dny.
 struct OfflineNotice: View {
     @Environment(AppModel.self) private var app
 
     var body: some View {
         if let since = app.api.offlineSince {
-            Label("Offline, data z \(since.formatted(.dateTime.day().month(.defaultDigits).hour().minute().locale(Locale(identifier: "cs_CZ"))))",
-                  systemImage: "wifi.slash")
+            Label("Starší data z \(since.formatted(.dateTime.day().month(.defaultDigits).hour().minute().locale(Locale(identifier: "cs_CZ")))). Stáhni nová ve Více.",
+                  systemImage: "clock.arrow.circlepath")
                 .font(.ponk(14, .semibold, relativeTo: .footnote))
                 .padding(.horizontal, 14)
                 .padding(.vertical, 8)

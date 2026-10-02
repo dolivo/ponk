@@ -77,6 +77,7 @@ struct ResultsView: View {
                 .presentationDetents([.height(260)])
         }
         .task(id: query) { await load() }
+        .onChange(of: app.meta?.products) { _, _ in Task { await load() } }
         .task {
             if let id = route.savedID { try? await app.api.send("DELETE", "saved/\(id)/seen") }
         }

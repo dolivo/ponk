@@ -2,7 +2,7 @@
 
 Neoficiální open-source aplikace pro nabídku **bauhaus.cz**: celý katalog, historie cen,
 skutečné slevy, skladovost na prodejnách včetně čísla regálu a hlídání cen.
-Běží **jen u tebe na počítači**, žádný cloud. Na iPhonu jako webová aplikace nebo nativní iOS appka.
+Webová verze běží na tvém počítači. iOS appka počítač nepotřebuje, denní data jí připravuje GitHub Actions zdarma.
 
 > Ponk není nijak spojený se společností BAUHAUS. Názvy, ceny a obrázky patří jejich vlastníkům.
 > Aplikace čte stejná veřejná data, jaká vidí každý návštěvník webu, a dělá to šetrně
@@ -42,10 +42,19 @@ proběhne hned po zapnutí.
 python3 run.py sync   # jednorázová kontrola cen bez serveru
 ```
 
-## iOS aplikace
+## iOS aplikace (bez počítače)
 
-Nativní appka ve SwiftUI pro iOS 18 a novější, na iOS 26 s Liquid Glass. Sestaví se zdarma v GitHub Actions
-a do iPhonu se nahraje z Windows přes Sideloadly. Postup: [docs/ios.md](docs/ios.md).
+Nativní appka ve SwiftUI pro iOS 18 a novější, na iOS 26 s Liquid Glass. Počítač nepotřebuje:
+ceny celého katalogu každé ráno kontroluje GitHub Actions (`.github/workflows/data.yml`)
+a zveřejní štíhlou databázi (~5 MB) ve vydání **data**. Telefon si ji stáhne, hledá a filtruje
+lokálně (funguje i offline) a detail produktu načítá živě z Bauhausu. Hlídané produkty
+a uložená hledání zůstávají jen v telefonu.
+
+Appka se sestaví zdarma v GitHub Actions (`ios.yml`) a instaluje se jako `.ipa`
+(Feather, Sideloadly…). Postup: [docs/ios.md](docs/ios.md).
+
+Chceš vlastní kopii? Forkni repozitář, v záložce Actions povol workflow a spusť
+„Data (denní kontrola cen)“. V aplikaci pak ve Více nastav svůj repozitář jako zdroj dat.
 
 ## Jak je to postavené
 

@@ -19,6 +19,8 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     timeout-minutes: 150
+    env:
+      TZ: Europe/Prague   # data a časy kontroly v českém čase
     steps:
       - uses: actions/checkout@v4
 

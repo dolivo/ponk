@@ -89,7 +89,7 @@ struct RunInfo: Codable, Hashable {
     let changed: Int?
 }
 
-struct SyncStatus: Codable, Hashable {
+struct SyncStatus: Codable, Hashable, Sendable {
     let running: Bool
     let phase: String
     let done: Int

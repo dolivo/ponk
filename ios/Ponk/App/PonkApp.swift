@@ -14,6 +14,10 @@ struct PonkApp: App {
                 .preferredColorScheme(theme == "light" ? .light : theme == "dark" ? .dark : nil)
                 .id(font) // po změně písma se rozhraní překreslí
         }
+        // Ranní kontrola na pozadí: stáhne nová data z GitHubu a upozorní na zlevněné hlídané produkty.
+        .backgroundTask(.appRefresh(DataStore.refreshTaskID)) {
+            await DataStore.shared.backgroundRefresh()
+        }
     }
 }
 
@@ -24,8 +28,8 @@ enum AppTab: Hashable {
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
-    @AppStorage("server") private var server = ""
     @State private var tab: AppTab = .home
+    @State private var started = false
     @State private var showSetup = false
 
     var body: some View {
@@ -53,71 +57,70 @@ struct RootView: View {
         }
         .ponkMinimizingTabBar()
         .task {
-            if server.isEmpty { showSetup = true } else { await app.loadMeta() }
+            await DataStore.shared.start()
+            started = true
+            if DataStore.shared.hasData {
+                await app.loadMeta()
+                if await DataStore.shared.update(force: false) { await app.loadMeta() }
+            } else {
+                showSetup = true
+            }
         }
         .onChange(of: scenePhase) { _, phase in
-            if phase == .active, !server.isEmpty { Task { await app.loadMeta() } }
+            if phase == .active, started, DataStore.shared.hasData {
+                Task {
+                    if await DataStore.shared.update(force: false) { await app.loadMeta() }
+                }
+            }
+            if phase == .background { DataStore.scheduleBackgroundRefresh() }
         }
         .sheet(isPresented: $showSetup) {
-            ServerSetupView { showSetup = false }
-                .interactiveDismissDisabled(server.isEmpty)
+            DataSetupView { showSetup = false; Task { await app.loadMeta() } }
+                .interactiveDismissDisabled(!DataStore.shared.hasData)
         }
     }
 }
 
-/// První spuštění: adresa serveru, kterou vypíše `python run.py` na počítači.
-struct ServerSetupView: View {
+/// První spuštění: stažení dat, která každé ráno připravuje GitHub.
+struct DataSetupView: View {
     var onDone: () -> Void
-    @Environment(AppModel.self) private var app
-    @AppStorage("server") private var server = ""
-    @State private var address = ""
-    @State private var testing = false
-    @State private var error: String?
+    @State private var store = DataStore.shared
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section {
-                    TextField("192.168.1.20:8765", text: $address)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
-                        .font(.ponk(20, .semibold))
-                } header: {
-                    Text("Adresa serveru")
-                } footer: {
-                    Text("Na počítači spusť python run.py. Adresu najdeš na řádku „v mobilu (Wi-Fi)“. Telefon musí být ve stejné Wi-Fi síti.")
+            VStack(alignment: .leading, spacing: 18) {
+                Text("Ponk potřebuje stáhnout katalog Bauhausu s cenami a sklady. Je to asi 5 MB a další dny se data stahují sama, nejlépe na Wi-Fi.")
+                    .font(.ponk(17))
+                Text("Data připravuje každé ráno GitHub. Počítač ani server nepotřebuješ, hlídané produkty zůstávají jen v telefonu.")
+                    .font(.ponk(15))
+                    .foregroundStyle(Color.ponkMuted)
+                if store.running {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text(store.phase).font(.ponk(16, .semibold))
+                        ProgressView().tint(.ponkRed)
+                    }
+                } else if !store.message.isEmpty, !store.hasData {
+                    Label(store.message, systemImage: "exclamationmark.triangle")
+                        .font(.ponk(15)).foregroundStyle(Color.ponkRedDeep)
                 }
-                if let error {
-                    Section { Label(error, systemImage: "exclamationmark.triangle").foregroundStyle(Color.ponkRedDeep) }
-                }
+                Spacer()
             }
-            .navigationTitle("Připojení")
+            .padding(20)
+            .navigationTitle("Vítej v Ponku")
             .safeAreaInset(edge: .bottom) {
                 Button {
-                    Task { await connect() }
+                    Task {
+                        await store.update(force: true)
+                        if store.hasData { onDone() }
+                    }
                 } label: {
-                    Text(testing ? "Zkouším spojení…" : "Připojit").font(.ponk(18, .heavy)).frame(maxWidth: .infinity)
+                    Text(store.running ? "Stahuji…" : "Stáhnout data").font(.ponk(18, .heavy)).frame(maxWidth: .infinity)
                 }
                 .ponkProminentButton()
                 .controlSize(.large)
-                .disabled(address.trimmingCharacters(in: .whitespaces).isEmpty || testing)
+                .disabled(store.running)
                 .padding()
             }
-            .onAppear { address = server }
-        }
-    }
-
-    private func connect() async {
-        testing = true
-        defer { testing = false }
-        do {
-            _ = try await app.api.test(server: address)
-            server = address.trimmingCharacters(in: .whitespacesAndNewlines)
-            await app.loadMeta()
-            onDone()
-        } catch {
-            self.error = error.localizedDescription
         }
     }
 }

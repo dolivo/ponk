@@ -102,7 +102,7 @@ struct CategoryBrowser: View {
         }
         .ponkPage()
         .navigationTitle(cat2 ?? cat1 ?? "Kategorie")
-        .task { await load() }
+        .task(id: app.meta?.products ?? -1) { await load() }
     }
 
     private var query: Query {
