@@ -1,0 +1,16 @@
+name: probe-bauhaus
+on: workflow_dispatch
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Dostupnost API Bauhausu z GitHubu
+        run: |
+          set -x
+          curl -s -o /dev/null -w "home %{http_code} %{time_total}s\n" -A "Ponk/0.3" https://www.bauhaus.cz/
+          curl -s -w "\nsearch %{http_code} %{time_total}s\n" -A "Ponk/0.3" -H 'Content-Type: application/json' \
+            -X POST 'https://www.bauhaus.cz/api/catalog/vue_storefront_catalog/product/_search' \
+            -d '{"size":1,"track_total_hits":true,"_source":["sku","name"],"query":{"term":{"status":1}}}' | tail -c 400
+          curl -s -w "\nstock %{http_code} %{time_total}s\n" -A "Ponk/0.3" -H 'Content-Type: application/json' \
+            -X POST 'https://www.bauhaus.cz/api/ext/vaimo-storelocator/stocks-api/indice/vue_storefront_catalog/stocksBySkus' \
+            -d '{"skus":["20814777"]}' | tail -c 300
