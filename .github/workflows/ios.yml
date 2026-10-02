@@ -1,0 +1,60 @@
+# Sestaví iOS aplikaci na Macu v GitHub Actions (u veřejného repozitáře zdarma).
+# Výsledek: nepodepsaný soubor Ponk.ipa v sekci Artifacts u běhu workflow.
+# Podepíšeš a nainstaluješ ho z Windows přes Sideloadly (viz docs/ios.md).
+name: iOS build
+
+on:
+  push:
+    paths: ["ios/**", ".github/workflows/ios.yml"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-26
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Vybrat nejnovější Xcode 26
+        run: |
+          XCODE=$(ls -d /Applications/Xcode_26*.app | sort -V | tail -1)
+          sudo xcode-select -s "$XCODE"
+          xcodebuild -version
+
+      - name: Vygenerovat projekt (XcodeGen)
+        run: |
+          brew install xcodegen
+          cd ios && xcodegen generate
+
+      - name: Sestavit (bez podpisu)
+        shell: bash
+        run: |
+          set -o pipefail
+          cd ios
+          xcodebuild \
+            -project Ponk.xcodeproj -scheme Ponk -configuration Release \
+            -sdk iphoneos -destination 'generic/platform=iOS' \
+            -derivedDataPath build \
+            CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
+            build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
+          test -d build/Build/Products/Release-iphoneos/Ponk.app
+
+      - name: Zabalit IPA
+        run: |
+          cd ios
+          mkdir -p Payload
+          cp -R build/Build/Products/Release-iphoneos/Ponk.app Payload/
+          zip -qry Ponk.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Ponk-ipa
+          path: ios/Ponk.ipa
+          retention-days: 30
+
+      - name: Při chybě uložit log (pošli ho Claudovi)
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: xcodebuild-log
+          path: ios/xcodebuild.log

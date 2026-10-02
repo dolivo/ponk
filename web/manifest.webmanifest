@@ -1,0 +1,14 @@
+{
+  "name": "Ponk – ceny z bauhaus.cz",
+  "short_name": "Ponk",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#ECEDEE",
+  "theme_color": "#FFFFFF",
+  "lang": "cs",
+  "icons": [
+    { "src": "/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml" }
+  ]
+}

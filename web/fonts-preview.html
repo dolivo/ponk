@@ -1,0 +1,18 @@
+<!doctype html><html lang="cs"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="stylesheet" href="/fonts/fonts.css"><link rel="stylesheet" href="/app.css">
+<style>
+body{padding:12px 0 20px}
+.f{background:var(--surface);border-top:1px solid var(--line);border-bottom:1px solid var(--line);margin:0 0 10px;padding:12px 14px;display:grid;gap:8px}
+.f .n{font:600 13px/1 system-ui,sans-serif;color:var(--muted)}
+.f h3{margin:0;font-size:24px;line-height:1.1;font-weight:800;letter-spacing:-.01em}
+.f p{margin:0;font-size:16px}
+.f .pr{display:flex;gap:12px;align-items:center}
+</style></head><body>
+<div id="list"></div>
+<script>
+const F=[["1","Barlow Semi Condensed"],["2","Sofia Sans Semi Condensed"],["3","Encode Sans Semi Condensed"],["4","Fira Sans Condensed"],["5","Saira Semi Condensed"]];
+document.getElementById("list").innerHTML=F.map(([i,n])=>`<div class="f" style="font-family:'${n}'"><span class="n">${i}. ${n}</span>
+<h3>Aku vrtací šroubovák 18 V</h3>
+<div class="pr"><span class="ptag sale"><span class="amt">1 290<small>Kč</small></span><span class="cut">−32 %</span></span><span class="ptag"><span class="amt">459<small>Kč</small></span></span></div>
+<p>Příliš žluťoučký kůň úpěl ďábelské ódy. Skladem 4 ks, regál 426.</p></div>`).join("");
+</script></body></html>

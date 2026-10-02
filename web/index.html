@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="cs" data-font="barlow">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#FFFFFF" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#202123" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Ponk">
+<title>Ponk – ceny z bauhaus.cz</title>
+<link rel="manifest" href="/manifest.webmanifest">
+<link rel="icon" href="/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="/icon-180.png">
+<link rel="stylesheet" href="/fonts/fonts.css">
+<link rel="stylesheet" href="/app.css">
+<script>
+  // Vzhled a písmo nastavíme dřív, než se stránka vykreslí (žádné probliknutí).
+  try {
+    const t = localStorage.getItem("ponk.theme");
+    if (t === "light" || t === "dark") document.documentElement.dataset.theme = t;
+    const f = localStorage.getItem("ponk.font");
+    if (f) document.documentElement.dataset.font = f;
+  } catch (e) {}
+</script>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <a class="brand" href="#/" aria-label="Ponk – domů">
+      <svg viewBox="0 0 32 32" aria-hidden="true"><path class="tag" d="M15.2 3H27a2 2 0 0 1 2 2v11.8a2 2 0 0 1-.6 1.4L17.6 29a2 2 0 0 1-2.8 0L3 17.2a2 2 0 0 1 0-2.8L13.8 3.6a2 2 0 0 1 1.4-.6Z"/><circle class="hole" cx="22.5" cy="9.5" r="2.4"/></svg>
+      <span>Ponk</span>
+    </a>
+    <form class="search" role="search" id="search-form" autocomplete="off">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/></svg>
+      <input id="q" type="search" name="q" placeholder="Hledat v nabídce Bauhausu" enterkeyhint="search" aria-label="Hledat">
+      <button type="button" class="clear" id="q-clear" aria-label="Smazat hledání" hidden>×</button>
+      <div class="suggest" id="suggest" hidden></div>
+    </form>
+    <nav class="desk-nav" aria-label="Hlavní menu"></nav>
+  </div>
+</header>
+
+<main id="view" tabindex="-1"></main>
+
+<nav class="tabbar" aria-label="Hlavní menu"></nav>
+
+<div class="sheet-backdrop" id="sheet-backdrop" hidden></div>
+<section class="sheet" id="sheet" role="dialog" aria-modal="true" hidden></section>
+<div class="toast" id="toast" role="status" hidden></div>
+
+<script src="/app.js" type="module"></script>
+</body>
+</html>

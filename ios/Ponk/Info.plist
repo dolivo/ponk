@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key><string>cs</string>
+	<key>CFBundleDisplayName</key><string>Ponk</string>
+	<key>CFBundleExecutable</key><string>$(EXECUTABLE_NAME)</string>
+	<key>CFBundleIdentifier</key><string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+	<key>CFBundleName</key><string>$(PRODUCT_NAME)</string>
+	<key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
+	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
+	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>LSRequiresIPhoneOS</key><true/>
+	<key>UILaunchScreen</key><dict/>
+	<key>UIApplicationSceneManifest</key>
+	<dict><key>UIApplicationSupportsMultipleScenes</key><false/></dict>
+	<key>UISupportedInterfaceOrientations</key>
+	<array><string>UIInterfaceOrientationPortrait</string></array>
+	<key>NSAppTransportSecurity</key>
+	<dict><key>NSAllowsArbitraryLoads</key><true/></dict>
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Ponk se připojuje k serveru Ponk na tvém počítači v domácí síti.</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>BarlowSemiCondensed-Regular.ttf</string><string>BarlowSemiCondensed-SemiBold.ttf</string><string>BarlowSemiCondensed-ExtraBold.ttf</string>
+		<string>SofiaSansSemiCondensed-Regular.ttf</string><string>SofiaSansSemiCondensed-SemiBold.ttf</string><string>SofiaSansSemiCondensed-ExtraBold.ttf</string>
+		<string>EncodeSansSemiCondensed-Regular.ttf</string><string>EncodeSansSemiCondensed-SemiBold.ttf</string><string>EncodeSansSemiCondensed-ExtraBold.ttf</string>
+		<string>FiraSansCondensed-Regular.ttf</string><string>FiraSansCondensed-SemiBold.ttf</string><string>FiraSansCondensed-ExtraBold.ttf</string>
+		<string>SairaSemiCondensed-Regular.ttf</string><string>SairaSemiCondensed-SemiBold.ttf</string><string>SairaSemiCondensed-ExtraBold.ttf</string>
+	</array>
+</dict>
+</plist>

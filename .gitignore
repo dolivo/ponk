@@ -1,0 +1,8 @@
+data/
+__pycache__/
+*.pyc
+ios/Ponk.xcodeproj/
+ios/build/
+ios/Payload/
+ios/*.ipa
+.DS_Store
