@@ -49,6 +49,9 @@ jobs:
           # aplikaci spolehlivě přepodepsat a instalace se zasekne.
           codesign --force --sign - --timestamp=none Payload/Ponk.app
           codesign -dv Payload/Ponk.app 2>&1 | grep -E "Identifier|Signature|CodeDirectory"
+          # Složku _CodeSignature smažeme: podepisovač si ji vytvoří znovu a starší
+          # verze Featheru s "pozůstatkem" _CodeSignature aplikaci nenainstalují.
+          rm -rf Payload/Ponk.app/_CodeSignature
           zip -qry Ponk.ipa Payload
 
       - uses: actions/upload-artifact@v4
