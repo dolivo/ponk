@@ -10,7 +10,7 @@ import urllib.parse
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import db, search, sync
+from . import __version__, db, search, sync
 from .config import HOST, PORT, WEB_DIR, LABELS
 
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -111,7 +111,7 @@ class Handler(BaseHTTPRequestHandler):
             watched = con.execute("SELECT COUNT(*) FROM watch w JOIN products p ON p.sku=w.sku "
                                   "WHERE p.price < w.added_price OR (w.target AND p.price <= w.target)").fetchone()[0]
             return {"settings": s, "stores": stores, "last_run": last, "products": n, "last_change": last_change,
-                    "watched_drops": watched, "labels": LABELS, "sync": sync.STATUS}
+                    "watched_drops": watched, "labels": LABELS, "sync": sync.STATUS, "version": __version__}
         if head == "home":
             return search.home(con, s.get("store"))
         if head == "search":
@@ -210,7 +210,7 @@ def main():
     if os.environ.get("PONK_NO_SCHEDULER") != "1":
         threading.Thread(target=scheduler, daemon=True).start()
     srv = ThreadingHTTPServer((HOST, PORT), Handler)
-    print(f"Ponk běží:\n  v tomto počítači  http://localhost:{PORT}\n  v mobilu (Wi-Fi)  http://{lan_ip()}:{PORT}")
+    print(f"Ponk {__version__} běží:\n  v tomto počítači  http://localhost:{PORT}\n  v mobilu (Wi-Fi)  http://{lan_ip()}:{PORT}")
     print("Ukončení: Ctrl+C")
     try:
         srv.serve_forever()

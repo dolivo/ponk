@@ -1,11 +1,11 @@
 # Sestaví iOS aplikaci na Macu v GitHub Actions (u veřejného repozitáře zdarma).
-# Výsledek: nepodepsaný soubor Ponk.ipa v sekci Artifacts u běhu workflow.
-# Podepíšeš a nainstaluješ ho z Windows přes Sideloadly (viz docs/ios.md).
+# Výsledek: soubor Ponk-<verze>.ipa v sekci Artifacts u běhu workflow.
+# Verze aplikace se bere ze souboru VERSION, číslo sestavení = pořadí běhu.
 name: iOS build
 
 on:
   push:
-    paths: ["ios/**", ".github/workflows/ios.yml"]
+    paths: ["ios/**", "VERSION", ".github/workflows/ios.yml"]
   workflow_dispatch:
 
 jobs:
@@ -14,6 +14,12 @@ jobs:
     timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+
+      - name: Verze
+        id: ver
+        run: |
+          echo "version=$(tr -d '[:space:]' < VERSION)" >> "$GITHUB_OUTPUT"
+          echo "build=${{ github.run_number }}" >> "$GITHUB_OUTPUT"
 
       - name: Vybrat nejnovější Xcode 26
         run: |
@@ -35,29 +41,36 @@ jobs:
             -project Ponk.xcodeproj -scheme Ponk -configuration Release \
             -sdk iphoneos -destination 'generic/platform=iOS' \
             -derivedDataPath build \
+            MARKETING_VERSION=${{ steps.ver.outputs.version }} \
+            CURRENT_PROJECT_VERSION=${{ steps.ver.outputs.build }} \
             CODE_SIGNING_ALLOWED=NO CODE_SIGNING_REQUIRED=NO CODE_SIGN_IDENTITY="" \
             build 2>&1 | tee xcodebuild.log | grep -E "error:|warning: .*deprecated|\*\* BUILD" || true
           test -d build/Build/Products/Release-iphoneos/Ponk.app
 
-      - name: Zabalit IPA (s ad-hoc podpisem)
+      - name: Zabalit IPA (ad-hoc podpis s rezervou místa)
         run: |
           cd ios
           mkdir -p Payload
           cp -R build/Build/Products/Release-iphoneos/Ponk.app Payload/
-          # Ad-hoc podpis vloží do binárky místo pro podpis (LC_CODE_SIGNATURE).
-          # Bez něj neumí některé podepisovače v iPhonu (Feather, ESign / zsign)
-          # aplikaci spolehlivě přepodepsat a instalace se zasekne.
-          codesign --force --sign - --timestamp=none Payload/Ponk.app
-          codesign -dv Payload/Ponk.app 2>&1 | grep -E "Identifier|Signature|CodeDirectory"
-          # Složku _CodeSignature smažeme: podepisovač si ji vytvoří znovu a starší
-          # verze Featheru s "pozůstatkem" _CodeSignature aplikaci nenainstalují.
+          # Podepisovače v iPhonu (Feather, ESign = zsign) přepisují podpis na místě.
+          # Když je v binárce na podpis málo místa, zsign soubor přepíše a ztratí se mu
+          # příznak "spustitelný" -> iOS aplikaci odmítne nainstalovat.
+          # Proto ad-hoc podpis nafoukneme dlouhým požadavkem (requirements),
+          # který podepisovač stejně nahradí vlastním. Místo pak zbude dost.
+          python3 - > req.txt <<'PY'
+          ids = ['identifier "cz.ponk.app"'] + ['identifier "rezerva.%02d.%s"' % (i, "x" * 480) for i in range(48)]
+          print("=designated => " + " or ".join(ids))
+          PY
+          codesign --force --sign - --timestamp=none --requirements "$(cat req.txt)" Payload/Ponk.app
+          codesign -dv Payload/Ponk.app 2>&1 | grep -E "Identifier|CodeDirectory|Signature size" || true
           rm -rf Payload/Ponk.app/_CodeSignature
-          zip -qry Ponk.ipa Payload
+          chmod 755 Payload/Ponk.app/Ponk
+          zip -qry Ponk-${{ steps.ver.outputs.version }}.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
-          name: Ponk-ipa
-          path: ios/Ponk.ipa
+          name: Ponk-${{ steps.ver.outputs.version }}-build${{ steps.ver.outputs.build }}
+          path: ios/Ponk-${{ steps.ver.outputs.version }}.ipa
           retention-days: 30
 
       - name: Při chybě uložit log (pošli ho Claudovi)

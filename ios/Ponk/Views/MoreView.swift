@@ -83,6 +83,8 @@ struct MoreView: View {
             Section {
                 Text("Ponk je neoficiální open-source klient pro veřejně dostupná data z bauhaus.cz. Není nijak spojený se společností BAUHAUS. Názvy, ceny a obrázky patří jejich vlastníkům. Licence MIT.")
                     .font(.ponk(14)).foregroundStyle(Color.ponkMuted)
+                LabeledContent("Verze aplikace", value: appVersion)
+                if let v = app.meta?.version { LabeledContent("Verze serveru", value: v) }
             }
         }
         .font(.ponk(17))
@@ -91,6 +93,13 @@ struct MoreView: View {
         .sheet(isPresented: $showServer) {
             ServerSetupView { showServer = false }
         }
+    }
+
+    private var appVersion: String {
+        let info = Bundle.main.infoDictionary
+        let v = info?["CFBundleShortVersionString"] as? String ?? "?"
+        let b = info?["CFBundleVersion"] as? String ?? "?"
+        return "\(v) (\(b))"
     }
 
     private func save(_ values: [String: String]) async {

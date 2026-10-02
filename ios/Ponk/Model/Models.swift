@@ -109,6 +109,7 @@ struct Meta: Codable {
     let watched_drops: Int
     let labels: [String: String]
     let sync: SyncStatus
+    let version: String?
 }
 
 struct FacetValue: Codable, Hashable, Identifiable {

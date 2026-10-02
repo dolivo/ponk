@@ -618,7 +618,7 @@ async function More() {
     </div></section>
     <section class="section"><div class="panel">
       <p style="margin:0 0 8px"><b>Ponk</b> je neoficiální open-source klient pro veřejně dostupná data z bauhaus.cz. Není nijak spojený se společností BAUHAUS. Názvy, ceny a obrázky patří jejich vlastníkům.</p>
-      <p class="muted" style="margin:0">V databázi je ${money(m.products)} aktivních produktů. Licence MIT.</p></div></section>`;
+      <p class="muted" style="margin:0">Verze ${esc(m.version || "")}. V databázi je ${money(m.products)} aktivních produktů. Licence MIT.</p></div></section>`;
   if (m.sync.running) watchSync(); else bindSyncButtons();
   const save = async (obj) => { await api("settings", { json: obj }); state.meta = await api("meta"); toast("Uloženo"); };
   $("#st-store").onchange = (e) => { state.cache.clear(); save({ store: e.target.value }); };
