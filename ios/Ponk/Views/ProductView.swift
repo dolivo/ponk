@@ -8,6 +8,7 @@ struct ProductView: View {
     @State private var error: String?
     @State private var refreshing = false
     @State private var showWatch = false
+    @State private var watchTick = 0
 
     var body: some View {
         ScrollView {
@@ -36,9 +37,10 @@ struct ProductView: View {
             }
         }
         .task { await load() }
+        .sensoryFeedback(.success, trigger: watchTick)
         .sheet(isPresented: $showWatch) {
             if let p {
-                WatchSheet(product: p) { Task { await load() } }
+                WatchSheet(product: p) { watchTick += 1; Task { await load() } }
                     .presentationDetents([.height(300)])
             }
         }
@@ -63,6 +65,7 @@ struct ProductView: View {
                 Text([p.brand, "kód \(p.sku)", p.ean.map { "EAN \($0)" }, p.dims].compactMap { $0 }.joined(separator: ", "))
                     .font(.ponk(14, relativeTo: .footnote))
                     .foregroundStyle(Color.ponkMuted)
+                    .textSelection(.enabled) // kód a EAN jde podržením zkopírovat
             }
             .padding(.horizontal, 14)
 
@@ -175,6 +178,7 @@ struct ProductView: View {
         do {
             p = try await app.api.get("product/\(sku)", refresh ? ["refresh": "1"] : [:], as: ProductDetail.self)
             error = nil
+            Recents.addViewed(sku)
         } catch is CancellationError {
         } catch {
             if p == nil { self.error = error.localizedDescription }
@@ -183,6 +187,7 @@ struct ProductView: View {
 
     private func unwatch(_ p: ProductDetail) async {
         try? await app.api.send("DELETE", "watch/\(p.sku)")
+        watchTick += 1
         await load()
         await app.loadMeta()
     }
@@ -204,6 +209,7 @@ private struct Block<Content: View>: View {
 private struct Gallery: View {
     let pictures: [String]
     @State private var page = 0
+    @State private var zoom = false
 
     var body: some View {
         if pictures.isEmpty {
@@ -218,6 +224,10 @@ private struct Gallery: View {
             .indexViewStyle(.page(backgroundDisplayMode: .always))
             .frame(height: 360)
             .background(Color.white)
+            .contentShape(Rectangle())
+            .onTapGesture { zoom = true }
+            .accessibilityAction(named: "Zobrazit fotky na celou obrazovku") { zoom = true }
+            .fullScreenCover(isPresented: $zoom) { ZoomGallery(pictures: pictures, page: $page) }
         }
     }
 }

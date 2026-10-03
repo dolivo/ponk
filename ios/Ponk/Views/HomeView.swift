@@ -3,11 +3,14 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @State private var home: HomeResponse?
+    @State private var recent: [Item] = []
     @State private var error: String?
+    @AppStorage(Recents.viewedKey) private var viewed = ""
 
     private var quick: [ResultsRoute] {
         let store = app.myStore ?? "888"
         return [
+            ResultsRoute(query: ["label": "sell_off", "sort": "discount"], title: "Výprodej"),
             ResultsRoute(query: ["label": "sell_off", "store": store, "sort": "discount"], title: "Výprodej skladem"),
             ResultsRoute(query: ["drop_days": "7", "sort": "drop"], title: "Zlevněno za 7 dní"),
             ResultsRoute(query: ["disc": "50", "sort": "discount"], title: "Sleva 50 % a víc"),
@@ -19,6 +22,7 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
+                BrandHeader().padding(.top, 6)
                 OfflineNotice()
                 ScrollView(.horizontal, showsIndicators: false) {
                     GlassGroup(spacing: 8) {
@@ -38,6 +42,17 @@ struct HomeView: View {
                 if let meta = app.meta, meta.products == 0 {
                     SyncCard()
                         .padding(.horizontal, 14)
+                }
+
+                if !recent.isEmpty {
+                    VStack(alignment: .leading, spacing: 0) {
+                        SectionHeader(title: "Naposledy prohlížené") {
+                            Button("Vymazat") { viewed = "" }
+                                .font(.ponk(16, .semibold))
+                                .foregroundStyle(Color.ponkRedDeep)
+                        }
+                        Rail(items: recent)
+                    }
                 }
 
                 if let home {
@@ -72,9 +87,19 @@ struct HomeView: View {
             .padding(.top, 4)
         }
         .ponkPage()
-        .navigationTitle("Ponk")
+        .navigationTitle("ponk for Bauhaus")
+        .toolbarVisibility(.hidden, for: .navigationBar) // místo titulku je hlavička s logem
         .refreshable { await load() }
         .task(id: app.meta?.products ?? -1) { await load() }
+        .task(id: viewed) { await loadRecent() }
+    }
+
+    private func loadRecent() async {
+        let skus = Recents.list(viewed)
+        guard !skus.isEmpty, DataStore.shared.hasData else { recent = []; return }
+        let items = (try? await app.api.get("items", ["skus": skus.joined(separator: "|")], as: ListResponse<Item>.self).items) ?? []
+        guard !Task.isCancelled else { return }
+        recent = items
     }
 
     private func load() async {

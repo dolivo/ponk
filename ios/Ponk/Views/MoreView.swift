@@ -6,6 +6,8 @@ struct MoreView: View {
     @AppStorage("font") private var font = PonkFont.barlow.rawValue
     @AppStorage("auto_wifi") private var autoWiFi = true
     @AppStorage("repo") private var repo = ""
+    @AppStorage(Recents.searchesKey) private var recentSearches = ""
+    @AppStorage(Recents.viewedKey) private var recentViewed = ""
     @State private var store = DataStore.shared
 
     var body: some View {
@@ -70,6 +72,23 @@ struct MoreView: View {
             }
 
             Section {
+                Button("Vymazat historii hledání a prohlížení", role: .destructive) {
+                    recentSearches = ""
+                    recentViewed = ""
+                }
+                .disabled(recentSearches.isEmpty && recentViewed.isEmpty)
+                Button("Uvolnit mezipaměť obrázků") {
+                    ImageCache.shared.removeAll()
+                    URLCache.shared.removeAllCachedResponses()
+                }
+            } header: {
+                Text("Soukromí a místo")
+            } footer: {
+                Text("Obrázky se ukládají do mezipaměti, aby se regály posouvaly plynule. Po vymazání se znovu stáhnou ve stejné kvalitě.")
+            }
+
+            Section {
+                BrandHeader().padding(.horizontal, -14).listRowBackground(Color.clear)
                 Text("Ponk je neoficiální open-source klient pro veřejně dostupná data z bauhaus.cz. Není nijak spojený se společností BAUHAUS. Názvy, ceny a obrázky patří jejich vlastníkům. Licence MIT.")
                     .font(.ponk(14)).foregroundStyle(Color.ponkMuted)
                 LabeledContent("Verze aplikace", value: appVersion)

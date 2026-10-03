@@ -79,10 +79,9 @@ img { max-width: 100%; display: block; }
   display: flex; align-items: center; gap: 12px; padding: 0 12px;
 }
 .brand { display: flex; align-items: center; gap: 6px; text-decoration: none; font-weight: 800; font-size: 22px; letter-spacing: -.01em; flex: none; }
-.brand svg { width: 30px; height: 30px; }
-.brand .tag { fill: var(--red); }
-.brand .hole { fill: var(--surface); }
-@media (max-width: 599px) { .brand span { display: none; } }
+.brand .bauhaus { display: block; height: 27px; width: auto; }
+.brand small { font-size: 14px; font-weight: 600; color: var(--muted); letter-spacing: 0; }
+@media (max-width: 599px) { .brand span { display: none; } .brand .bauhaus { height: 22px; } }
 
 .search { position: relative; flex: 1; display: flex; align-items: center; min-width: 0; }
 .search > svg { position: absolute; left: 12px; width: 20px; height: 20px; fill: none; stroke: var(--muted); stroke-width: 2; pointer-events: none; }

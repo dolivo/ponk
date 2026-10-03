@@ -6,6 +6,7 @@ struct SearchTab: View {
     @State private var path = NavigationPath()
     @State private var text = ""
     @State private var suggest: SuggestResponse?
+    @AppStorage(Recents.searchesKey) private var recent = ""
 
     var body: some View {
         NavigationStack(path: $path) {
@@ -20,7 +21,13 @@ struct SearchTab: View {
 
     @ViewBuilder
     private var suggestions: some View {
-        if let s = suggest, !text.isEmpty {
+        if text.isEmpty {
+            ForEach(Recents.list(recent), id: \.self) { r in
+                Button { submit(r) } label: {
+                    Label(r, systemImage: "clock.arrow.circlepath").foregroundStyle(Color.ponkInk)
+                }
+            }
+        } else if let s = suggest {
             ForEach(s.categories) { c in
                 Button { go(ResultsRoute(query: c.query, title: c.name)) } label: {
                     LabeledContent { Text("kategorie") } label: { Label(c.name, systemImage: "square.grid.2x2") }
@@ -47,6 +54,7 @@ struct SearchTab: View {
     private func submit(_ t: String) {
         let q = t.trimmingCharacters(in: .whitespaces)
         guard !q.isEmpty else { return }
+        recent = Recents.adding(q, to: recent)
         go(ResultsRoute(query: ["q": q], title: "„\(q)“"))
     }
 

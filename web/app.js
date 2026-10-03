@@ -17,14 +17,15 @@ const ICON = {
   ext: '<path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"/>',
   refresh: '<path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7"/>',
   back: '<path d="M15 5 8 12l7 7"/>',
+  search: '<circle cx="10.5" cy="10.5" r="6.5"/><path d="m15.5 15.5 5 5"/>',
 };
 const icon = (n) => `<svg viewBox="0 0 24 24" aria-hidden="true">${ICON[n]}</svg>`;
 
 const TABS = [
   { href: "#/", label: "Domů", icon: "home", match: (r) => r.name === "home" },
   { href: "#/kategorie", label: "Kategorie", icon: "grid", match: (r) => r.name === "kategorie" },
-  { href: "#/hledat?label=sell_off&sort=discount", label: "Výprodej", icon: "tag",
-    match: (r) => r.name === "hledat" && r.params.get("label") === "sell_off" && !r.params.get("q") },
+  // Katalog: všechny položky najednou, hledání + filtry na jednom místě
+  { href: "#/hledat", label: "Katalog", icon: "search", match: (r) => r.name === "hledat" },
   { href: "#/hlidane", label: "Hlídané", icon: "eye", match: (r) => r.name === "hlidane" },
   { href: "#/vice", label: "Více", icon: "menu", match: (r) => r.name === "vice" },
 ];
@@ -179,6 +180,7 @@ async function Home() {
   const home = await api("home");
   const store = m.settings.store;
   const quick = [
+    ["Výprodej", { label: "sell_off", sort: "discount" }],
     ["Výprodej skladem", { label: "sell_off", store, sort: "discount" }],
     ["Zlevněno za 7 dní", { drop_days: 7, sort: "drop" }],
     ["Sleva 50 % a víc", { disc: 50, sort: "discount" }],
@@ -220,7 +222,7 @@ function resultsTitle(p) {
   if (p.get("cat3") || p.get("cat2") || p.get("cat1")) return p.get("cat3") || p.get("cat2") || p.get("cat1");
   if (p.get("label") === "sell_off") return "Výprodej";
   if (p.get("drop_days")) return "Zlevněné zboží";
-  return "Nabídka";
+  return p.get("q") ? "Nabídka" : "Katalog";
 }
 
 async function Results() {
