@@ -1,8 +1,8 @@
 import SwiftUI
 import UIKit
 
-/// Logo Bauhaus. Když je v Assets obrázek „BauhausLogo“ (originální logo jako SVG/PDF),
-/// použije se ten; jinak se kreslí červený obdélník s bílým nápisem písmem aplikace.
+/// Logo Bauhaus: originál z bauhaus.cz jako vektorové PDF v Assets („BauhausLogo“).
+/// Kdyby obrázek chyběl, kreslí se náhradní červený obdélník s nápisem.
 struct BauhausLogo: View {
     var height: CGFloat = 26
 
@@ -60,7 +60,7 @@ struct BrandHeader: View {
             Text("for")
                 .font(.ponk(17, .semibold, relativeTo: .headline))
                 .foregroundStyle(Color.ponkMuted)
-            BauhausLogo(height: 28)
+            BauhausLogo(height: 30)
             Spacer(minLength: 0)
         }
         .padding(.horizontal, 14)
@@ -118,7 +118,8 @@ struct SplashView: View {
         ZStack {
             Color.ponkPage.ignoresSafeArea()
             VStack(spacing: 16) {
-                BauhausLogo(height: 64)
+                BauhausLogo(height: 58)
+                    .padding(.horizontal, 24)
                     .scaleEffect(logoIn ? 1 : 0.55)
                     .opacity(logoIn ? 1 : 0)
                 Text("ponk")

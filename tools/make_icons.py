@@ -95,16 +95,6 @@ def icon_svg(variant: str = "light") -> str:
 """
 
 
-def logo_svg() -> str:
-    """Samotné logo (červený obdélník s bílým nápisem) pro web."""
-    w, h = 200, 54
-    word = word_path("BAUHAUS", 14, 12, w - 28, h - 24, tracking=0.03)
-    return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 {w} {h}">
-  <rect width="{w}" height="{h}" fill="{RED}"/>
-  <path fill="#FFFFFF" d="{word}"/>
-</svg>
-"""
-
 
 def png(svg: str, size: int) -> Image.Image:
     return Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size)))
@@ -113,7 +103,8 @@ def png(svg: str, size: int) -> Image.Image:
 def main() -> None:
     light = icon_svg("light")
     (ROOT / "web/icon.svg").write_text(light)
-    (ROOT / "web/bauhaus-logo.svg").write_text(logo_svg())
+    # web/bauhaus-logo.svg a ios/.../BauhausLogo.imageset jsou originální logo (vektor z bauhaus.cz),
+    # tento skript je negeneruje.
     icons = ROOT / "ios/Ponk/Resources/Assets.xcassets/AppIcon.appiconset"
     # iOS: výchozí ikona bez průhlednosti, tmavá a tónovaná s průhledným podkladem
     png(light, 1024).convert("RGB").save(icons / "icon-1024.png", optimize=True)

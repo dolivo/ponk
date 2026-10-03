@@ -9,8 +9,8 @@ Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
   S Omezit pohyb jen krátké prolnutí.
 - Logo vlevo v horní liště (logo Bauhaus + „ponk“) na záložkách Katalog, Slevy, Hlídané a Hledat,
   místo textového titulku; na iOS 26 bez skleněného podkladu. Na záložce Více zůstává titulek.
-- Logo Bauhaus jde nahradit originálem: stačí přidat do Assets obrázek „BauhausLogo“ (SVG/PDF),
-  aplikace ho použije automaticky v liště, animaci i hlavičkách.
+- Originální logo Bauhausu (domečky + BAUHAUS, vektor z bauhaus.cz) v liště, úvodní animaci,
+  hlavičkách a na webu místo dřívější napodobeniny. V iOS jako vektorové PDF v Assets („BauhausLogo“).
 - Čtečka čárových kódů v Katalogu je vpravo v liště (vlevo je logo).
 
 ## 0.5.1
