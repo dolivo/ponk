@@ -113,7 +113,9 @@ COLS = ["sku", "pid", "name", "url_path", "brand", "cat1", "cat2", "cat3", "cat_
 
 def upsert(con, p, params, today):
     """Uloží produkt a při změně ceny zapíše bod historie. Vrací 'new' / 'changed' / None."""
-    old = con.execute("SELECT price FROM products WHERE sku=?", (p["sku"],)).fetchone()
+    old = con.execute("SELECT price, online_in_stock FROM products WHERE sku=?", (p["sku"],)).fetchone()
+    if old is not None and not old["online_in_stock"] and p["online_in_stock"]:
+        con.execute("INSERT OR IGNORE INTO restock VALUES(?,?,?)", (p["sku"], "eshop", today))
     result = None
     if old is None:
         con.execute(f"INSERT INTO products({','.join(COLS)}, first_seen, last_seen, active) "
@@ -139,7 +141,12 @@ def upsert(con, p, params, today):
     return result
 
 
-def save_stock(con, rows, skus):
+def save_stock(con, rows, skus, today=None):
+    """Uloží sklad. S `today` zaznamená naskladnění: položka/prodejna, kde včera nic nebylo."""
+    prev = set()
+    if today:
+        marks = ",".join("?" * len(skus))
+        prev = {(r[0], r[1]) for r in con.execute(f"SELECT sku, store FROM stock WHERE sku IN ({marks})", list(skus))}
     con.executemany("DELETE FROM stock WHERE sku=?", [(s,) for s in skus])
     data = []
     for r in rows:
@@ -147,6 +154,9 @@ def save_stock(con, rows, skus):
         if qty and str(r.get("status", "1")) == "1":
             data.append((str(r["product_sku"]), str(r["code"]), qty))
     con.executemany("INSERT OR REPLACE INTO stock VALUES(?,?,?)", data)
+    if today:
+        con.executemany("INSERT OR IGNORE INTO restock VALUES(?,?,?)",
+                        [(sku, store, today) for sku, store, _ in data if (sku, store) not in prev])
 
 
 def run(limit=None, log=print):
@@ -203,17 +213,19 @@ def run(limit=None, log=print):
 
         if settings.get("sync_stock", "1") == "1":
             STATUS.update(phase="Skladovost na prodejnách", done=0)
+            track = con.execute("SELECT 1 FROM stock LIMIT 1").fetchone() is not None
             skus = [r[0] for r in con.execute("SELECT sku FROM products WHERE active=1 AND last_seen=?", (today,))]
             STATUS["total"] = len(skus)
             for i in range(0, len(skus), 50):
                 chunk = skus[i:i + 50]
-                save_stock(con, client.stocks(chunk), chunk)
+                save_stock(con, client.stocks(chunk), chunk, today if track else None)
                 STATUS["done"] = i + len(chunk)
                 if i % 1000 == 0:
                     con.commit()
                     log(f"  sklad {i}/{len(skus)}")
             con.commit()
 
+        con.execute("DELETE FROM restock WHERE day < date(?, '-30 day')", (today,))
         con.execute("UPDATE runs SET finished=?, status='ok', products=?, changed=?, new=? WHERE id=?",
                     (datetime.now().isoformat(timespec="seconds"), counts["products"], counts["changed"],
                      counts["new"], run_id))

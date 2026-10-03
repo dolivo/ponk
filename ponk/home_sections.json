@@ -1,0 +1,39 @@
+[
+ {
+  "title": "Nově skladem: {store_name}",
+  "query": {
+   "restock_days": "2",
+   "store": "{store}",
+   "sort": "discount"
+  }
+ },
+ {
+  "title": "Zlevněno při poslední kontrole",
+  "query": {
+   "drop_days": "1",
+   "sort": "drop"
+  }
+ },
+ {
+  "title": "Výprodej skladem: {store_name}",
+  "query": {
+   "label": "sell_off",
+   "store": "{store}",
+   "sort": "discount"
+  }
+ },
+ {
+  "title": "Nově v nabídce",
+  "query": {
+   "new_days": "7",
+   "sort": "newest_seen"
+  }
+ },
+ {
+  "title": "Největší skutečné slevy",
+  "query": {
+   "disc": "30",
+   "sort": "discount"
+  }
+ }
+]

@@ -31,6 +31,8 @@ CREATE TABLE IF NOT EXISTS stores(code TEXT PRIMARY KEY, name TEXT, city TEXT);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
 CREATE TABLE IF NOT EXISTS runs(id INTEGER PRIMARY KEY, started TEXT, finished TEXT, status TEXT,
   products INTEGER, changed INTEGER, new INTEGER, error TEXT);
+CREATE TABLE IF NOT EXISTS restock(sku TEXT, store TEXT, day TEXT, PRIMARY KEY(sku, store, day)) WITHOUT ROWID;
+CREATE INDEX IF NOT EXISTS restock_day ON restock(day, store);
 CREATE TABLE IF NOT EXISTS watch(sku TEXT PRIMARY KEY, added TEXT, added_price REAL, target REAL);
 CREATE TABLE IF NOT EXISTS saved(id INTEGER PRIMARY KEY, name TEXT, query TEXT, created TEXT, checked TEXT);
 """
