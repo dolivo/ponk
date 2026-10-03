@@ -94,7 +94,7 @@ struct FiltersSheet: View {
                         }
                     }
 
-                    // kategorie až na konci, nahoře je Nabídka (Doprodej, Akce…)
+                    // kategorie až na konci, nahoře je Nabídka (Výprodej, Akce…)
                     categorySection(f)
                 } else {
                     ProgressView().frame(maxWidth: .infinity)

@@ -137,7 +137,7 @@ struct ResultsView: View {
         guard catalog else { return [] }
         let store = app.myStore ?? "888"
         return [
-            .multi(id: "labelsell_off", title: "Doprodej", key: "label", value: "sell_off"),
+            .multi(id: "labelsell_off", title: "Výprodej", key: "label", value: "sell_off"),
             .single(id: "store", title: "Skladem: \(app.storeName(store))", key: "store", value: store),
             .single(id: "online", title: "Skladem online", key: "online", value: "1"),
             .single(id: "disc", title: "Sleva 30 %+", key: "disc", value: "30"),

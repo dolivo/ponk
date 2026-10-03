@@ -5,7 +5,7 @@ import Foundation
 /// jako dřív server na počítači, takže obrazovky aplikace se nemusely měnit.
 actor LocalEngine {
     static let labels: [String: String] = [
-        "sell_off": "Doprodej", "sale": "Akce", "free_shipping": "Doprava zdarma", "only_online": "Jen online",
+        "sell_off": "Výprodej", "sale": "Akce", "free_shipping": "Doprava zdarma", "only_online": "Jen online",
         "warranty": "Prodloužená záruka", "qty_discount": "Množstevní sleva", "new": "Novinka",
     ]
     static let labelOrder = ["sell_off", "sale", "free_shipping", "only_online", "warranty", "qty_discount", "new"]
@@ -494,7 +494,7 @@ actor LocalEngine {
             defs = parsed
         } else {
             defs = [["title": "Zlevněno při poslední kontrole", "query": ["drop_days": "1", "sort": "drop"]],
-                    ["title": "Doprodej skladem: {store_name}", "query": ["label": "sell_off", "store": "{store}", "sort": "discount"]],
+                    ["title": "Výprodej skladem: {store_name}", "query": ["label": "sell_off", "store": "{store}", "sort": "discount"]],
                     ["title": "Největší skutečné slevy", "query": ["disc": "30", "sort": "discount"]]]
         }
         for def in defs {

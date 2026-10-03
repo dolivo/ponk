@@ -10,8 +10,8 @@ struct HomeView: View {
     private var quick: [ResultsRoute] {
         let store = app.myStore ?? "888"
         return [
-            ResultsRoute(query: ["label": "sell_off", "sort": "discount"], title: "Doprodej"),
-            ResultsRoute(query: ["label": "sell_off", "store": store, "sort": "discount"], title: "Doprodej skladem"),
+            ResultsRoute(query: ["label": "sell_off", "sort": "discount"], title: "Výprodej"),
+            ResultsRoute(query: ["label": "sell_off", "store": store, "sort": "discount"], title: "Výprodej skladem"),
             ResultsRoute(query: ["drop_days": "7", "sort": "drop"], title: "Zlevněno za 7 dní"),
             ResultsRoute(query: ["disc": "50", "sort": "discount"], title: "Sleva 50 % a víc"),
             ResultsRoute(query: ["label": "free_shipping"], title: "Doprava zdarma"),

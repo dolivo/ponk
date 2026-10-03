@@ -77,7 +77,7 @@ struct Flags: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
-            if item.labels.contains("sell_off") { Flag(text: "Doprodej", color: .ponkRed, ink: .white) }
+            if item.labels.contains("sell_off") { Flag(text: "Výprodej", color: .ponkRed, ink: .white) }
             if let changed = item.price_changed_at, changed == app.meta?.last_change, (item.drop_pct ?? 0) > 0 {
                 Flag(text: "Zlevněno", color: .ponkGreen, ink: .white)
             }

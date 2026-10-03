@@ -22,7 +22,7 @@ DEFAULT_SETTINGS = {
 }
 
 LABELS = {
-    "sell_off": "Doprodej",
+    "sell_off": "Výprodej",
     "sale": "Akce",
     "free_shipping": "Doprava zdarma",
     "only_online": "Jen online",

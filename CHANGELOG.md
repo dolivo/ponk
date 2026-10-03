@@ -3,6 +3,9 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.6.2
+- Štítek sell_off se zase jmenuje „Výprodej“ (zpět z „Doprodej“). Pořadí filtrů zůstává.
+
 ## 0.6.1
 - Oprava: logo Bauhausu se v aplikaci nezobrazovalo (v liště ani v animaci bylo jen „ponk“).
   Logo má teď pevný poměr stran a je jako ostrý PNG ve 3× rozlišení.

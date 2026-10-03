@@ -15,7 +15,7 @@
   }
  },
  {
-  "title": "Doprodej skladem: {store_name}",
+  "title": "Výprodej skladem: {store_name}",
   "query": {
    "label": "sell_off",
    "store": "{store}",

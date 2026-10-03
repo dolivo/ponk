@@ -250,7 +250,7 @@ def home(con, store):
             "p.price_changed_at = ? AND p.drop_pct > 0 ORDER BY p.drop_pct DESC", (today_rows,))
     if store:
         sname = (con.execute("SELECT name FROM stores WHERE code=?", (store,)).fetchone() or [store])[0]
-        add(f"Doprodej skladem: {sname}", {"label": "sell_off", "store": store, "sort": "discount"},
+        add(f"Výprodej skladem: {sname}", {"label": "sell_off", "store": store, "sort": "discount"},
             "p.labels LIKE '%,sell_off,%' AND EXISTS (SELECT 1 FROM stock s WHERE s.sku=p.sku AND s.store=? AND s.qty>0) "
             "ORDER BY COALESCE(p.real_discount,0) DESC", (store,))
     add("Největší skutečné slevy", {"disc": "30", "sort": "discount"},
