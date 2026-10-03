@@ -110,6 +110,7 @@ struct CategoryBrowser: View {
         }
         .ponkPage()
         .navigationTitle(cat2 ?? cat1 ?? "Kategorie")
+        .ponkBrandToolbar(cat1 == nil) // logo jen na první úrovni záložky Hledat
         .task(id: app.meta?.products ?? -1) { await load() }
     }
 

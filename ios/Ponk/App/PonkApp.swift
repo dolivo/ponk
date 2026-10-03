@@ -5,6 +5,7 @@ struct PonkApp: App {
     @State private var app = AppModel()
     @AppStorage("theme") private var theme = "system"
     @AppStorage("font") private var font = PonkFont.barlow.rawValue
+    @State private var showSplash = true
 
     init() {
         ImageCache.configureURLCache()
@@ -12,11 +13,17 @@ struct PonkApp: App {
 
     var body: some Scene {
         WindowGroup {
-            RootView()
-                .environment(app)
-                .tint(.ponkRed)
-                .preferredColorScheme(theme == "light" ? .light : theme == "dark" ? .dark : nil)
-                .id(font) // po změně písma se rozhraní překreslí
+            ZStack {
+                RootView()
+                    .id(font) // po změně písma se rozhraní překreslí
+                if showSplash {
+                    SplashView { showSplash = false }
+                        .zIndex(1)
+                }
+            }
+            .environment(app)
+            .tint(.ponkRed)
+            .preferredColorScheme(theme == "light" ? .light : theme == "dark" ? .dark : nil)
         }
         // Ranní kontrola na pozadí: stáhne nová data z GitHubu a upozorní na zlevněné hlídané produkty.
         .backgroundTask(.appRefresh(DataStore.refreshTaskID)) {
@@ -69,6 +76,7 @@ struct RootView: View {
                 await app.loadMeta()
                 if await DataStore.shared.update(force: false) { await app.loadMeta() }
             } else {
+                try? await Task.sleep(for: .seconds(1.5)) // až po úvodní animaci
                 showSetup = true
             }
         }

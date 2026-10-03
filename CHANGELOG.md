@@ -3,6 +3,16 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.6.0
+- Úvodní animace po spuštění (~1,5 s): logo pružně naskočí, pod ním „ponk“, pak se plynule
+  rozplyne do aplikace. Navazuje na launch screen ve stejné barvě pozadí (colorset LaunchBackground).
+  S Omezit pohyb jen krátké prolnutí.
+- Logo vlevo v horní liště (logo Bauhaus + „ponk“) na záložkách Katalog, Slevy, Hlídané a Hledat,
+  místo textového titulku; na iOS 26 bez skleněného podkladu. Na záložce Více zůstává titulek.
+- Logo Bauhaus jde nahradit originálem: stačí přidat do Assets obrázek „BauhausLogo“ (SVG/PDF),
+  aplikace ho použije automaticky v liště, animaci i hlavičkách.
+- Čtečka čárových kódů v Katalogu je vpravo v liště (vlevo je logo).
+
 ## 0.5.1
 - Ikona aplikace ve třech variantách pro iOS 18+: světlá, tmavá (průhledný podklad) a tónovaná
   (bílé tvary s vyříznutým nápisem, v tónovaném režimu dobře čitelná). Generuje tools/make_icons.py.

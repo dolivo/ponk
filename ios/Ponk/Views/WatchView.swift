@@ -67,6 +67,7 @@ struct WatchView: View {
         .scrollContentBackground(.hidden)
         .ponkPage()
         .navigationTitle("Hlídané")
+        .ponkBrandToolbar()
         .overlay {
             if let error, !loaded { ErrorState(message: error) { Task { await load() } } }
         }

@@ -58,9 +58,10 @@ struct ResultsView: View {
         }
         .ponkPage(bottomFade: 84)
         .navigationTitle(route.title)
+        .ponkBrandToolbar(catalog)
         .toolbar {
             if catalog {
-                ToolbarItem(placement: .topBarLeading) {
+                ToolbarItem(placement: .topBarTrailing) {
                     Button { showScanner = true } label: { Image(systemName: "barcode.viewfinder") }
                         .accessibilityLabel("Načíst čárový kód")
                 }

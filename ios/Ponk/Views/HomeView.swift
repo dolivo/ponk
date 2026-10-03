@@ -22,7 +22,6 @@ struct HomeView: View {
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 20) {
-                BrandHeader().padding(.top, 6)
                 OfflineNotice()
                 ScrollView(.horizontal, showsIndicators: false) {
                     GlassGroup(spacing: 8) {
@@ -87,8 +86,8 @@ struct HomeView: View {
             .padding(.top, 4)
         }
         .ponkPage()
-        .navigationTitle("ponk for Bauhaus")
-        .toolbarVisibility(.hidden, for: .navigationBar) // místo titulku je hlavička s logem
+        .navigationTitle("Slevy")
+        .ponkBrandToolbar()
         .refreshable { await load() }
         .task(id: app.meta?.products ?? -1) { await load() }
         .task(id: viewed) { await loadRecent() }
