@@ -11,6 +11,7 @@ Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
   místo textového titulku; na iOS 26 bez skleněného podkladu. Na záložce Více zůstává titulek.
 - Originální logo Bauhausu (domečky + BAUHAUS, vektor z bauhaus.cz) v liště, úvodní animaci,
   hlavičkách a na webu místo dřívější napodobeniny. V iOS jako vektorové PDF v Assets („BauhausLogo“).
+- Ikona aplikace (světlá, tmavá, tónovaná) i webové ikony s originálním logem Bauhausu.
 - Čtečka čárových kódů v Katalogu je vpravo v liště (vlevo je logo).
 
 ## 0.5.1

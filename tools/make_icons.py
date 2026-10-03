@@ -55,7 +55,27 @@ def word_path(text: str, box_x: float, box_y: float, box_w: float, box_h: float,
 TAG = ("M243 96h158a32 32 0 0 1 32 32v158a32 32 0 0 1-9.4 22.6L282.6 449.4a32 32 0 0 1-45.2 0"
        "L62.6 274.6a32 32 0 0 1 0-45.2L220.4 105.4A32 32 0 0 1 243 96Z")
 HOLE = "M386 176a34 34 0 1 0-68 0a34 34 0 1 0 68 0Z"
-PLATE = (64, 330, 384, 104)
+LOGO_BOX = (36, 338, 440)  # x, y, šířka originálního loga v ikoně
+
+
+def bauhaus_logo(tinted: bool = False) -> str:
+    """Originální logo z web/bauhaus-logo.svg jako vnořené SVG umístěné do ikony.
+
+    tinted: červená → bílá, bílá → černá (pak se z ní stane průhlednost), stín pryč.
+    """
+    import re
+    src = (ROOT / "web/bauhaus-logo.svg").read_text()
+    vb = re.search(r'viewBox="([^"]+)"', src).group(1)
+    _, _, vw, vh = map(float, vb.split())
+    inner = src[src.index(">", src.index("<svg")) + 1: src.rindex("</svg>")]
+    if tinted:
+        inner = (inner.replace("rgb(100%, 100%, 100%)", "#000000")
+                      .replace("rgb(88.627625%, 5.490112%, 9.01947%)", "#FFFFFF")
+                      .replace('fill="rgb(11.764526%, 11.764526%, 10.980225%)" fill-opacity="1"',
+                               'fill="#000000" fill-opacity="0"'))
+    x, y, w = LOGO_BOX
+    h = w * vh / vw
+    return f'<svg x="{x}" y="{y}" width="{w}" height="{h:.1f}" viewBox="{vb}">{inner}</svg>'
 
 
 def icon_svg(variant: str = "light") -> str:
@@ -66,13 +86,10 @@ def icon_svg(variant: str = "light") -> str:
     tinted – jen bílé tvary na průhledném podkladu; iOS je obarví zvolenou barvou.
              Otvor v cenovce a písmena jsou vyříznuté, aby byly vidět i při tónování.
     """
-    x, y, w, h = PLATE
-    word = word_path("BAUHAUS", x + 26, y + 24, w - 52, h - 48, tracking=0.03)
-    plate_path = f"M{x} {y}h{w}v{h}h-{w}Z"
     if variant == "tinted":
         return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <g transform="translate(118 26) scale(0.58)"><path fill="#FFFFFF" fill-rule="evenodd" d="{TAG} {HOLE}"/></g>
-  <path fill="#FFFFFF" fill-rule="evenodd" d="{plate_path} {word}"/>
+  {bauhaus_logo(tinted=True)}
 </svg>
 """
     bg = {"light": '<rect width="512" height="512" fill="url(#bgl)"/>', "dark": ""}[variant]
@@ -89,8 +106,7 @@ def icon_svg(variant: str = "light") -> str:
   </defs>
   {bg}
   <g transform="translate(118 26) scale(0.58)"><path fill="url(#red)" fill-rule="evenodd" d="{TAG} {HOLE}"/></g>
-  <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{RED}"/>
-  <path fill="#FFFFFF" d="{word}"/>
+  {bauhaus_logo()}
 </svg>
 """
 
@@ -109,7 +125,11 @@ def main() -> None:
     # iOS: výchozí ikona bez průhlednosti, tmavá a tónovaná s průhledným podkladem
     png(light, 1024).convert("RGB").save(icons / "icon-1024.png", optimize=True)
     png(icon_svg("dark"), 1024).convert("RGBA").save(icons / "icon-1024-dark.png", optimize=True)
-    png(icon_svg("tinted"), 1024).convert("LA").save(icons / "icon-1024-tinted.png", optimize=True)
+    # tónovaná: černá místa (písmena, okna domečků) se změní v průhlednost
+    tinted = png(icon_svg("tinted"), 1024).convert("RGBA")
+    lum, alpha = tinted.convert("L"), tinted.getchannel("A")
+    alpha = Image.composite(lum, Image.new("L", lum.size, 0), alpha)
+    Image.merge("LA", (Image.new("L", lum.size, 255), alpha)).save(icons / "icon-1024-tinted.png", optimize=True)
     (icons / "Contents.json").write_text("""{ "images" : [
   { "filename" : "icon-1024.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" },
   { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
