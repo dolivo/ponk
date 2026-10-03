@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS products(
   price REAL, was_price REAL, min30_price REAL, real_discount INTEGER,
   labels TEXT, online_qty REAL, online_in_stock INTEGER,
   unit_price REAL, unit TEXT, unit_factor REAL,
-  rating INTEGER, rank INTEGER, ean TEXT, usps TEXT, dims TEXT, positions TEXT,
+  rating INTEGER, rating_count INTEGER, rank INTEGER, ean TEXT, usps TEXT, dims TEXT, positions TEXT,
   created_at TEXT, first_seen TEXT, last_seen TEXT, active INTEGER DEFAULT 1,
   prev_price REAL, price_changed_at TEXT, drop_pct REAL,
   description TEXT, description_at TEXT, search TEXT
@@ -49,6 +49,10 @@ def connect():
 def init():
     con = connect()
     con.executescript(SCHEMA)
+    # starší databáze: sloupce přidané v novějších verzích
+    cols = {r[1] for r in con.execute("PRAGMA table_info(products)")}
+    if "rating_count" not in cols:
+        con.execute("ALTER TABLE products ADD COLUMN rating_count INTEGER")
     # běh přerušený vypnutím počítače
     con.execute("UPDATE runs SET status='interrupted' WHERE status='running'")
     for k, v in DEFAULT_SETTINGS.items():

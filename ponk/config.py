@@ -11,6 +11,7 @@ PORT = int(os.environ.get("PONK_PORT", "8765"))
 
 BASE = "https://www.bauhaus.cz"
 CATALOG = BASE + "/api/catalog/vue_storefront_catalog/"
+REVIEWS = BASE + "/api/ext/vaimo-reviews/reviews/"
 STOCKS = BASE + "/api/ext/vaimo-storelocator/stocks-api/indice/vue_storefront_catalog/stocksBySkus"
 USER_AGENT = "Ponk/0.1 (open-source offline price tracker)"
 
@@ -19,6 +20,7 @@ DEFAULT_SETTINGS = {
     "sync_time": "06:00",    # denní kontrola cen
     "request_delay": "0.3",  # pauza mezi dotazy (s)
     "sync_stock": "1",       # stahovat skladovost po prodejnách
+    "sync_ratings": "1",     # stahovat hodnocení zákazníků (recenze BAUHAUS)
 }
 
 LABELS = {

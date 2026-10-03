@@ -3,6 +3,17 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.7.0
+- **Hodnocení zákazníků**: 0–5 hvězdiček (i poloviční) s průměrem a počtem recenzí u každého produktu
+  ve výsledcích hledání, v regálech i v detailu. Bez recenzí jsou hvězdičky prázdné „(0)“.
+  Filtr „Hodnocení 4+“ a řazení „Nejlépe hodnocené“ teď používají skutečné recenze.
+- **Recenze v detailu produktu**: souhrn (průměr, rozložení 5–1 hvězdiček) a texty recenzí
+  se jménem, datem, „ověřený nákup“ a odpověďmi BAUHAUS. Recenze sdílí všechny weby BAUHAUS
+  (Česko, Německo, Rakousko, Švýcarsko…); zahraniční jsou přeložené do češtiny a jde zobrazit originál.
+  Načítají se živě z bauhaus.cz (iOS i web).
+- Denní úloha stahuje hodnocení z API recenzí BAUHAUS (vaimo-reviews, 50 produktů na dotaz);
+  každý den třetinu katalogu, nové produkty hned. Nastavení `sync_ratings`.
+
 ## 0.6.2
 - Štítek sell_off se zase jmenuje „Výprodej“ (zpět z „Doprodej“). Pořadí filtrů zůstává.
 

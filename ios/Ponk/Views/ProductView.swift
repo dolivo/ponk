@@ -62,6 +62,7 @@ struct ProductView: View {
                     .font(.ponk(27, .heavy, relativeTo: .title))
                     .foregroundStyle(Color.ponkInk)
                     .fixedSize(horizontal: false, vertical: true)
+                Stars(rating: p.rating, count: p.rating_count, size: 15)
                 Text([p.brand, "kód \(p.sku)", p.ean.map { "EAN \($0)" }, p.dims].compactMap { $0 }.joined(separator: ", "))
                     .font(.ponk(14, relativeTo: .footnote))
                     .foregroundStyle(Color.ponkMuted)
@@ -138,6 +139,7 @@ struct ProductView: View {
 
             Block(title: "Kde je skladem") { StockList(p: p) }
             Block(title: "Vývoj ceny") { PriceChart(history: p.history, current: p.price) }
+            Block(title: "Hodnocení zákazníků") { ReviewsSection(sku: p.sku) }
 
             if !p.params.isEmpty {
                 Block(title: "Parametry") {
@@ -396,5 +398,155 @@ struct WatchSheet: View {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+}
+
+/// Recenze zákazníků načtené živě z Bauhausu (včetně přeložených ze zahraničních webů BAUHAUS).
+private struct ReviewsSection: View {
+    let sku: String
+    @State private var page: ReviewsPage?
+    @State private var failed = false
+    @State private var loadingMore = false
+
+    var body: some View {
+        Group {
+            if let page {
+                if page.count == 0 && page.items.isEmpty {
+                    Text("Zatím bez recenzí. Hodnocení se sbírá ze všech webů BAUHAUS (Česko, Německo, Rakousko…).")
+                        .font(.ponk(15)).foregroundStyle(Color.ponkMuted)
+                } else {
+                    VStack(alignment: .leading, spacing: 14) {
+                        summary(page)
+                        ForEach(page.items) { ReviewCard(review: $0) }
+                        if page.next != nil {
+                            Button {
+                                Task { await more() }
+                            } label: {
+                                if loadingMore { ProgressView() } else {
+                                    Text("Další recenze (\(max(0, page.total - page.items.count)))").font(.ponk(16, .semibold))
+                                }
+                            }
+                            .ponkGlassButton()
+                            .disabled(loadingMore)
+                        }
+                    }
+                }
+            } else if failed {
+                HStack {
+                    Text("Recenze se nepodařilo načíst.").font(.ponk(15)).foregroundStyle(Color.ponkMuted)
+                    Spacer()
+                    Button("Zkusit znovu") { Task { await load() } }.font(.ponk(15, .semibold))
+                }
+            } else {
+                ProgressView().frame(maxWidth: .infinity).padding(12)
+            }
+        }
+        .task(id: sku) { await load() }
+    }
+
+    private func summary(_ page: ReviewsPage) -> some View {
+        HStack(alignment: .center, spacing: 18) {
+            VStack(spacing: 4) {
+                Text(page.average.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "cs_CZ"))))
+                    .font(.ponk(40, .heavy, relativeTo: .largeTitle))
+                    .foregroundStyle(Color.ponkInk)
+                Stars(rating: Int((page.average * 20).rounded()), count: page.count, size: 13, showText: false)
+                Text("\(page.count) \(plural(page.count, "hodnocení", "hodnocení", "hodnocení"))")
+                    .font(.ponk(13)).foregroundStyle(Color.ponkMuted)
+            }
+            VStack(spacing: 3) {
+                ForEach(Array(page.distribution.enumerated()), id: \.offset) { i, n in
+                    HStack(spacing: 6) {
+                        Text("\(5 - i)").font(.ponk(13, .semibold)).monospacedDigit().frame(width: 10)
+                        GeometryReader { g in
+                            ZStack(alignment: .leading) {
+                                Capsule().fill(Color.ponkLine)
+                                Capsule().fill(Color.ponkStar)
+                                    .frame(width: page.count > 0 ? g.size.width * CGFloat(n) / CGFloat(page.count) : 0)
+                            }
+                        }
+                        .frame(height: 6)
+                        Text("\(n)").font(.ponk(13)).monospacedDigit().foregroundStyle(Color.ponkMuted).frame(width: 26, alignment: .trailing)
+                    }
+                }
+            }
+        }
+        .padding(12)
+        .background(Color.ponkSurface, in: RoundedRectangle(cornerRadius: 6))
+        .accessibilityElement(children: .combine)
+    }
+
+    private func load() async {
+        failed = false
+        do {
+            page = try await ReviewsAPI.load(sku: sku)
+        } catch is CancellationError {
+        } catch {
+            if page == nil { failed = true }
+        }
+    }
+
+    private func more() async {
+        guard let current = page, let next = current.next else { return }
+        loadingMore = true
+        defer { loadingMore = false }
+        if let more = try? await ReviewsAPI.load(sku: sku, cursor: next) {
+            var merged = current
+            let known = Set(current.items.map(\.id))
+            merged.items += more.items.filter { !known.contains($0.id) }
+            merged.next = more.next
+            page = merged
+        }
+    }
+}
+
+private struct ReviewCard: View {
+    let review: Review
+    @State private var showOriginal = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 8) {
+                Stars(rating: review.rating * 20, count: nil, size: 12, showText: false)
+                if !review.title.isEmpty {
+                    Text(review.title).font(.ponk(16, .semibold)).foregroundStyle(Color.ponkInk).lineLimit(2)
+                }
+            }
+            Text(showOriginal ? (review.original ?? review.text) : review.text)
+                .font(.ponk(15))
+                .foregroundStyle(Color.ponkInk)
+                .fixedSize(horizontal: false, vertical: true)
+            HStack(spacing: 6) {
+                Text([review.author, dayDate(review.date)?.formatted(.dateTime.day().month(.defaultDigits).year().locale(Locale(identifier: "cs_CZ"))), review.verified ? "ověřený nákup" : nil]
+                    .compactMap { $0 }.filter { !$0.isEmpty }.joined(separator: " · "))
+                if review.recommended { Image(systemName: "hand.thumbsup.fill").foregroundStyle(Color.ponkGreen) }
+            }
+            .font(.ponk(13))
+            .foregroundStyle(Color.ponkMuted)
+            if review.original != nil {
+                Button {
+                    showOriginal.toggle()
+                } label: {
+                    Text(showOriginal ? "Zobrazit překlad"
+                         : "Přeloženo\(review.country.isEmpty ? "" : " · \(review.country)")\(review.source.isEmpty ? "" : " (\(review.source))") · originál")
+                        .font(.ponk(13, .semibold))
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(Color.ponkRedDeep)
+            }
+            ForEach(review.replies, id: \.self) { reply in
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Odpověď BAUHAUS").font(.ponk(13, .semibold))
+                    Text(reply).font(.ponk(14))
+                }
+                .foregroundStyle(Color.ponkInk)
+                .padding(10)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.ponkSurface2, in: RoundedRectangle(cornerRadius: 4))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.ponkSurface, in: RoundedRectangle(cornerRadius: 6))
     }
 }

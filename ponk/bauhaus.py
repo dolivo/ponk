@@ -4,7 +4,7 @@ import json
 import time
 import urllib.request
 
-from .config import BASE, CATALOG, STOCKS, USER_AGENT
+from .config import BASE, CATALOG, REVIEWS, STOCKS, USER_AGENT
 
 # Pole, která nepotřebujeme a jen zvětšují přenos (~40 % dat).
 EXCLUDE = ["description", "product_links", "classification_store_sort",
@@ -79,6 +79,27 @@ class Client:
     def attributes(self):
         res = self.json(CATALOG + "attribute/_search", {"size": 2000})
         return [h["_source"] for h in res["hits"]["hits"]]
+
+    def ratings(self, skus):
+        """Hodnocení zákazníků BAUHAUS (průměr 1–5 a počet recenzí). Nejvýš 50 kódů na dotaz.
+
+        Recenze sdílí všechny země BAUHAUS (bauhaus.info, .at, .cz…), takže počty zahrnují i ty zahraniční.
+        Vrací {sku: (průměr nebo None, počet)}.
+        """
+        res = self.json(REVIEWS + "getRatings/product_ids/" + ",".join(skus))
+        out = {}
+        for r in res.get("result") or []:
+            allr = next((x for x in r.get("ratings") or [] if x.get("collection_source") == "all"), None)
+            if allr and allr.get("count"):
+                out[str(r.get("product_id"))] = (float(allr.get("average_rating") or 0), int(allr["count"]))
+            else:
+                out[str(r.get("product_id"))] = (None, 0)
+        return out
+
+    def reviews(self, sku, limit=10, cursor=None):
+        """Texty recenzí jednoho produktu (i ze zahraničních webů BAUHAUS, s českým překladem)."""
+        url = f"{REVIEWS}getReviews/product_id/{sku}/limit/{limit}/cursor/{cursor or 'false'}/ratings/false"
+        return self.json(url).get("result") or {}
 
     def stocks(self, skus):
         res = self.json(STOCKS, {"skus": list(skus)})

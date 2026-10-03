@@ -25,7 +25,7 @@ actor LocalEngine {
     var hasData: Bool { db != nil }
 
     /// Co stažená data obsahují (starší data z GitHubu nemusí mít nové tabulky).
-    private struct Caps { var active = false; var restock = false; var maps = false }
+    private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false }
     private var caps = Caps()
 
     // MARK: - otevření a příprava dat
@@ -49,7 +49,8 @@ actor LocalEngine {
         try d.run("ATTACH DATABASE ? AS u", [userPath])
         let cols = Set(try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String })
         let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
-        caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"))
+        caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"),
+                    ratingCount: cols.contains("rating_count"))
         db = d
         suggestIndex = nil
     }
@@ -309,6 +310,7 @@ actor LocalEngine {
 
     private var itemCols: String {
         Self.baseItemCols + (caps.active ? ", p.active, p.last_price" : ", 1 AS active, NULL AS last_price")
+            + (caps.ratingCount ? ", p.rating_count" : ", NULL AS rating_count")
     }
 
     private func itemsFor(_ rows: [[String: Any]], store: String?) throws -> [[String: Any]] {

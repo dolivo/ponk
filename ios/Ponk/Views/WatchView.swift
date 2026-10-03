@@ -83,7 +83,7 @@ struct WatchView: View {
                     online_in_stock: i.online_in_stock, unit_price: i.unit_price, unit: i.unit, rating: i.rating,
                     prev_price: added, price_changed_at: i.price_changed_at ?? i.added, drop_pct: i.drop_pct,
                     cat3: i.cat3, dims: i.dims, store_qty: i.store_qty, added: i.added, added_price: i.added_price,
-                    target: i.target)
+                    target: i.target, active: i.active, last_price: i.last_price, rating_count: i.rating_count)
     }
 
     private func load() async {

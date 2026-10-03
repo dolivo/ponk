@@ -10,7 +10,7 @@ import urllib.parse
 from datetime import date, datetime, timedelta
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-from . import __version__, db, search, sync
+from . import __version__, db, reviews, search, sync
 from .config import HOST, PORT, WEB_DIR, LABELS
 
 mimetypes.add_type("application/manifest+json", ".webmanifest")
@@ -131,6 +131,10 @@ class Handler(BaseHTTPRequestHandler):
                 except Exception:
                     p["description"] = None  # offline – popis se načte příště
             return p
+        if head == "reviews" and len(parts) > 1:
+            from .bauhaus import Client
+            cursor = (q.get("cursor") or [""])[0] or None
+            return reviews.simplify(Client(delay=0).reviews(parts[1], limit=10, cursor=cursor))
         if head == "watch":
             if method == "POST":
                 b = self.body()

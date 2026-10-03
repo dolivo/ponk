@@ -151,6 +151,15 @@ function avail(it) {
   return `<div class="avail">Nedostupné</div>`;
 }
 
+// Hodnocení zákazníků: 0–5 hvězdiček (rating 0–100), bez recenzí prázdné šedé.
+function stars(rating, count, text = true) {
+  const v = (rating || 0) / 20;
+  const s = [0, 1, 2, 3, 4].map((i) => { const d = v - i; return d >= 0.75 ? "full" : d >= 0.25 ? "half" : ""; });
+  const label = rating ? `Hodnocení ${v.toFixed(1).replace(".", ",")} z 5${count ? `, ${count} recenzí` : ""}` : "Bez hodnocení";
+  return `<span class="stars ${rating ? "" : "none"}" role="img" aria-label="${label}">${s.map((c) => `<i class="${c}"></i>`).join("")}${text
+    ? (rating ? `<b>${v.toFixed(1).replace(".", ",")}</b>${count ? `<span>(${count})</span>` : ""}` : "<span>(0)</span>") : ""}</span>`;
+}
+
 function tile(it) {
   const flags = [];
   if (it.labels?.includes("sell_off")) flags.push('<span class="flag red">Výprodej</span>');
@@ -160,7 +169,7 @@ function tile(it) {
   return `<a class="tile" href="#/p/${encodeURIComponent(it.sku)}">
     <div class="pic">${it.image ? `<img src="${img(it.image)}" alt="" loading="lazy" onerror="this.replaceWith(Object.assign(document.createElement('span'),{className:'noimg',textContent:'Obrázek není k dispozici'}))">` : '<span class="noimg">Bez obrázku</span>'}
       ${flags.length ? `<div class="flags">${flags.join("")}</div>` : ""}</div>
-    <div class="body"><p class="name">${name}</p>
+    <div class="body"><p class="name">${name}</p>${stars(it.rating, it.rating_count)}
     <div class="bottom">${ptag(it)}${priceMeta(it)}${avail(it)}</div></div></a>`;
 }
 
@@ -484,7 +493,7 @@ async function Product(sku, refresh = false) {
       ${pics.length > 1 ? `<div class="dots">${pics.map((_, i) => `<i class="${i ? "" : "on"}"></i>`).join("")}</div>` : ""}</div>
     <div class="pd-main">
       <div><div class="crumbs">${p.cat_path.map((c, i) => `<a href="#/${i < 2 ? "kategorie" : "hledat"}?${qs({ cat1: p.cat_path[0], cat2: i >= 1 ? p.cat_path[1] : null, cat3: i >= 2 ? p.cat_path[2] : null })}">${esc(c)}</a>`).join("<span>/</span>")}</div>
-        <h1>${esc(p.name)}</h1><div class="sub">${p.brand ? `${esc(p.brand)}, ` : ""}kód ${esc(p.sku)}${p.ean ? `, EAN ${esc(p.ean)}` : ""}${p.dims ? `<br>${esc(p.dims)}` : ""}</div></div>
+        <h1>${esc(p.name)}</h1>${stars(p.rating, p.rating_count)}<div class="sub">${p.brand ? `${esc(p.brand)}, ` : ""}kód ${esc(p.sku)}${p.ean ? `, EAN ${esc(p.ean)}` : ""}${p.dims ? `<br>${esc(p.dims)}` : ""}</div></div>
       <div class="pricebox">${ptag(p, true)}${why}
         ${p.was_price ? `<div class="pmeta">Původně <s>${money(p.was_price)} Kč</s></div>` : ""}
         ${p.unit_price ? `<div class="pmeta">${nf2.format(p.unit_price)} Kč/${esc(p.unit)}</div>` : ""}
@@ -503,13 +512,53 @@ async function Product(sku, refresh = false) {
           <span class="sq ${p.stock[s.code] ? "" : "no"}">${p.stock[s.code] ? `${money(p.stock[s.code])} ks` : "není"}</span>${p.stock[s.code] ? pos(s.code) : ""}</div>`).join("")}
       </div></section>
       <section class="block"><h2>Vývoj ceny</h2>${chart(p.history, p.price)}</section>
+      <section class="block"><h2>Hodnocení zákazníků</h2><div id="reviews"><p class="muted">Načítám recenze…</p></div></section>
       ${p.params.length ? `<section class="block"><h2>Parametry</h2><table class="params">${p.params.map((x) => `<tr><th>${esc(x.label)}</th><td>${esc(x.value)}</td></tr>`).join("")}</table></section>` : ""}
       ${p.description ? `<section class="block"><h2>Popis</h2><div class="desc">${sanitize(p.description)}</div></section>` : ""}
     </div></article>`;
   const gal = $("#gal");
   if (gal && pics.length > 1) gal.onscroll = () => { const i = Math.round(gal.scrollLeft / gal.clientWidth); $$(".dots i").forEach((d, j) => d.classList.toggle("on", i === j)); };
   $("#watch").onclick = () => (watching ? unwatch(p.sku) : openWatchSheet(p));
+  loadReviews(p.sku);
   $("#refresh").onclick = async (e) => { e.currentTarget.disabled = true; try { await Product(sku, true); toast("Cena a sklad aktualizovány"); } catch { toast("Bauhaus teď nejde načíst. Jsi online?"); } };
+}
+
+// Recenze živě z Bauhausu (přes lokální server), i přeložené ze zahraničních webů BAUHAUS.
+async function loadReviews(sku, cursor = null) {
+  const box = $("#reviews");
+  if (!box) return;
+  let r;
+  try { r = await api(`reviews/${encodeURIComponent(sku)}${cursor ? `?cursor=${encodeURIComponent(cursor)}` : ""}`); }
+  catch { if (!cursor) box.innerHTML = `<p class="muted">Recenze se nepodařilo načíst.</p>`; return; }
+  if (!cursor && !r.count && !r.items.length) { box.innerHTML = `<p class="muted">Zatím bez recenzí. Hodnocení se sbírá ze všech webů BAUHAUS (Česko, Německo, Rakousko…).</p>`; return; }
+  const card = (x) => `<div class="review">
+      <div class="rhead">${stars(x.rating * 20, 0, false)}${x.title ? `<b>${esc(x.title)}</b>` : ""}</div>
+      <p data-t="${esc(x.text)}" data-o="${esc(x.original || "")}">${esc(x.text)}</p>
+      <div class="rmeta">${esc(x.author)} · ${new Date(x.date).toLocaleDateString("cs-CZ")}${x.verified ? " · ověřený nákup" : ""}${x.recommended ? " · 👍" : ""}</div>
+      ${x.translated ? `<button class="link" data-orig>Přeloženo · ${esc(x.country)}${x.source ? ` (${esc(x.source)})` : ""} · originál</button>` : ""}
+      ${x.replies.map((rep) => `<div class="reply"><b>Odpověď BAUHAUS</b><br>${esc(rep.text)}</div>`).join("")}</div>`;
+  const more = r.next ? `<button class="btn" data-more="${esc(r.next)}">Další recenze</button>` : "";
+  if (!cursor) {
+    const bars = r.distribution.map((n, i) => `<div class="bar"><span>${5 - i}</span><i><u style="width:${r.count ? (n / r.count) * 100 : 0}%"></u></i><span>${n}</span></div>`).join("");
+    box.innerHTML = `<div class="rsum"><div class="ravg"><b>${r.average.toFixed(1).replace(".", ",")}</b>${stars(Math.round(r.average * 20), r.count, false)}<span>${r.count} hodnocení</span></div><div class="rbars">${bars}</div></div>
+      <div class="rlist">${r.items.map(card).join("")}</div>${more}`;
+  } else {
+    box.querySelector("[data-more]")?.remove();
+    box.querySelector(".rlist").insertAdjacentHTML("beforeend", r.items.map(card).join(""));
+    box.insertAdjacentHTML("beforeend", more);
+  }
+  box.onclick = (e) => {
+    const m = e.target.closest("[data-more]");
+    if (m) { m.disabled = true; return loadReviews(sku, m.dataset.more); }
+    const o = e.target.closest("[data-orig]");
+    if (o) {
+      const p = o.parentElement.querySelector("p[data-o]");
+      const showOrig = p.textContent === p.dataset.t;
+      p.textContent = showOrig ? p.dataset.o : p.dataset.t;
+      o.textContent = showOrig ? "Zobrazit překlad" : o.dataset.label || "Přeloženo · originál";
+    }
+  };
+  box.querySelectorAll("[data-orig]").forEach((b) => { if (!b.dataset.label) b.dataset.label = b.textContent; });
 }
 
 async function unwatch(sku) { await api("watch/" + encodeURIComponent(sku), { method: "DELETE" }); toast("Už nehlídáš"); refreshMeta(); Product(sku); }

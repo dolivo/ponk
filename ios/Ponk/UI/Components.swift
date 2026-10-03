@@ -146,6 +146,56 @@ private func nameText(_ item: Item, size: CGFloat) -> Text {
 }
 
 /// Dlaždice jako přihrádka v regálu.
+/// Hodnocení zákazníků: 0–5 hvězdiček (i poloviční) a počet recenzí.
+/// Bez recenzí jsou hvězdičky prázdné a šedé.
+struct Stars: View {
+    /// Průměr 0–100 (jako v datech: 4,5 hvězdičky = 90).
+    let rating: Int?
+    let count: Int?
+    var size: CGFloat = 12
+    var showText = true
+
+    private var value: Double { Double(rating ?? 0) / 20 }
+    private var rated: Bool { (rating ?? 0) > 0 }
+
+    var body: some View {
+        HStack(spacing: 4) {
+            HStack(spacing: 1) {
+                ForEach(0..<5, id: \.self) { i in
+                    Image(systemName: symbol(i))
+                        .font(.system(size: size, weight: .semibold))
+                }
+            }
+            .foregroundStyle(rated ? Color.ponkStar : Color.ponkMuted.opacity(0.45))
+            if showText {
+                Group {
+                    if rated {
+                        Text(value.formatted(.number.precision(.fractionLength(1)).locale(Locale(identifier: "cs_CZ"))))
+                            .fontWeight(.semibold)
+                            .foregroundStyle(Color.ponkInk)
+                        if let count, count > 0 {
+                            Text("(\(count))").foregroundStyle(Color.ponkMuted)
+                        }
+                    } else {
+                        Text("(0)").foregroundStyle(Color.ponkMuted)
+                    }
+                }
+                .font(.ponk(size + 1, relativeTo: .caption))
+                .monospacedDigit()
+            }
+        }
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(rated
+            ? "Hodnocení \(value.formatted(.number.precision(.fractionLength(1)))) z 5, \(count ?? 0) recenzí"
+            : "Bez hodnocení")
+    }
+
+    private func symbol(_ i: Int) -> String {
+        let d = value - Double(i)
+        return d >= 0.75 ? "star.fill" : d >= 0.25 ? "star.leadinghalf.filled" : "star"
+    }
+}
+
 struct ProductTile: View {
     let item: Item
 
@@ -158,6 +208,7 @@ struct ProductTile: View {
                     .foregroundStyle(Color.ponkInk)
                     .lineLimit(3)
                     .frame(maxWidth: .infinity, minHeight: 56, alignment: .topLeading)
+                Stars(rating: item.rating, count: item.rating_count)
                 Spacer(minLength: 0)
                 PriceTag(price: item.price, discount: item.real_discount)
                 PriceMeta(item: item)
@@ -181,6 +232,7 @@ struct ProductRow: View {
                 .overlay(alignment: .topLeading) { Flags(item: item).scaleEffect(0.85, anchor: .topLeading).padding(4) }
             VStack(alignment: .leading, spacing: 6) {
                 nameText(item, size: 15).foregroundStyle(Color.ponkInk).lineLimit(2)
+                Stars(rating: item.rating, count: item.rating_count)
                 PriceTag(price: item.price, discount: item.real_discount)
                 PriceMeta(item: item)
                 Availability(item: item)

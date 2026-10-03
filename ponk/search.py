@@ -13,7 +13,7 @@ SORTS = {
     "discount": "COALESCE(p.real_discount, 0) DESC, COALESCE(p.drop_pct, 0) DESC",
     "drop": "(p.price_changed_at IS NOT NULL AND p.drop_pct > 0) DESC, p.price_changed_at DESC, p.drop_pct DESC",
     "unit": "p.unit_price IS NULL, p.unit_price ASC",
-    "rating": "COALESCE(p.rating, 0) DESC",
+    "rating": "COALESCE(p.rating, 0) DESC, COALESCE(p.rating_count, 0) DESC",
     "newest": "p.created_at DESC",
 }
 PAGE = 30
@@ -95,7 +95,7 @@ def build_where(q, skip=()):
 
 
 ITEM_COLS = ("p.sku, p.name, p.brand, p.image, p.price, p.was_price, p.min30_price, p.real_discount, p.labels, "
-             "p.online_in_stock, p.unit_price, p.unit, p.rating, p.prev_price, p.price_changed_at, p.drop_pct, "
+             "p.online_in_stock, p.unit_price, p.unit, p.rating, p.rating_count, p.prev_price, p.price_changed_at, p.drop_pct, "
              "p.cat3, p.dims")
 
 

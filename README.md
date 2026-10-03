@@ -13,6 +13,7 @@ Webová verze běží na tvém počítači. iOS appka počítač nepotřebuje, d
 - Celý katalog (~94 000 produktů) s cenami, 30denním minimem, štítky a parametry
 - Denní kontrola cen v nastavený čas a historie každé změny (graf v detailu)
 - **Skutečná sleva** počítaná proti nejnižší ceně za 30 dní, ne proti „původní“ ceně
+- Hodnocení zákazníků (0–5 hvězdiček) a recenze ze všech webů BAUHAUS, zahraniční přeložené do češtiny
 - Skladovost na všech 9 prodejnách a **regál + pole**, kde zboží leží
 - Filtry: kategorie, cena, značka, sleva, zlevněno za X dní, skladem na prodejně / online,
   štítky (výprodej, doprava zdarma…), hodnocení, cena za jednotku, parametry podle kategorie

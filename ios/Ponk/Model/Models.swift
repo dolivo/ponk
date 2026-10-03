@@ -73,6 +73,8 @@ struct Item: Codable, Identifiable, Hashable {
     // novější data: produkt stažený z nabídky (bez ceny) a jeho poslední cena
     var active: Int? = nil
     var last_price: Double? = nil
+    /// Počet recenzí zákazníků (rating je průměr 0–100). Ve starších datech chybí.
+    var rating_count: Int? = nil
 
     var id: String { sku }
     var isListed: Bool { active != 0 }
@@ -273,6 +275,7 @@ struct ProductDetail: Codable {
     let params: [Param]
     let watch: WatchInfo?
     var active: Int? = nil
+    var rating_count: Int? = nil
     var last_price: Double? = nil
 
     var pictures: [String] {

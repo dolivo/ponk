@@ -81,7 +81,7 @@ def normalize(src, maps):
         "online_in_stock": 1 if stock.get("is_in_stock") else 0,
         "unit_price": _num(src.get("prepoctenacena")) if unit else None,
         "unit": unit, "unit_factor": _num(src.get("faktorprepoctu")) if unit else None,
-        "rating": src.get("rating") or None, "rank": src.get("relevance") or 0,
+        "rank": src.get("relevance") or 0,
         "ean": src.get("ean"), "usps": json.dumps(usps, ensure_ascii=False),
         "dims": (src.get("produktklammerung") or "").strip() or None,
         "positions": json.dumps(positions, ensure_ascii=False) if positions else None,
@@ -107,7 +107,7 @@ def normalize(src, maps):
 
 COLS = ["sku", "pid", "name", "url_path", "brand", "cat1", "cat2", "cat3", "cat_path", "image", "gallery",
         "price", "was_price", "min30_price", "real_discount", "labels", "online_qty", "online_in_stock",
-        "unit_price", "unit", "unit_factor", "rating", "rank", "ean", "usps", "dims", "positions",
+        "unit_price", "unit", "unit_factor", "rank", "ean", "usps", "dims", "positions",
         "created_at", "search"]
 
 
@@ -157,6 +157,39 @@ def save_stock(con, rows, skus, today=None):
     if today:
         con.executemany("INSERT OR IGNORE INTO restock VALUES(?,?,?)",
                         [(sku, store, today) for sku, store, _ in data if (sku, store) not in prev])
+
+
+def sync_ratings(con, client, today, log=print, parts=3):
+    """Hodnocení zákazníků z recenzí BAUHAUS (rating 0–100 jako dřív, rating_count = počet recenzí).
+
+    Recenze přibývají pomalu, proto se každý den obnoví jen třetina katalogu
+    (a vždy všechno, co ještě hodnocení nemá) – úloha se tak prodlouží jen o pár minut.
+    """
+    part = date.fromisoformat(today).toordinal() % parts
+    skus = [r[0] for r in con.execute(
+        "SELECT sku FROM products WHERE active=1 AND (rating_count IS NULL OR CAST(sku AS INTEGER) % ? = ?)",
+        (parts, part))]
+    STATUS["total"] = len(skus)
+    failed = 0
+    for i in range(0, len(skus), 50):
+        chunk = skus[i:i + 50]
+        try:
+            got = client.ratings(chunk)
+        except Exception as e:
+            failed += 1
+            if failed > 20:
+                raise RuntimeError(f"recenze nedostupné ({e})")
+            continue
+        rows = []
+        for s in chunk:
+            avg, cnt = got.get(s, (None, 0))
+            rows.append((round(avg * 20) if avg else None, cnt, s))
+        con.executemany("UPDATE products SET rating=?, rating_count=? WHERE sku=?", rows)
+        STATUS["done"] = i + len(chunk)
+        if i % 2000 == 0:
+            con.commit()
+            log(f"  hodnocení {i}/{len(skus)}")
+    con.commit()
 
 
 def run(limit=None, log=print):
@@ -224,6 +257,13 @@ def run(limit=None, log=print):
                     con.commit()
                     log(f"  sklad {i}/{len(skus)}")
             con.commit()
+
+        if settings.get("sync_ratings", "1") == "1":
+            STATUS.update(phase="Hodnocení zákazníků", done=0)
+            try:
+                sync_ratings(con, client, today, log)
+            except Exception as e:
+                log(f"Hodnocení se nepodařilo načíst: {e}")
 
         con.execute("DELETE FROM restock WHERE day < date(?, '-30 day')", (today,))
         con.execute("UPDATE runs SET finished=?, status='ok', products=?, changed=?, new=? WHERE id=?",

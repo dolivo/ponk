@@ -23,7 +23,7 @@ TABLES = """
 CREATE TABLE products(
   sku TEXT PRIMARY KEY, name TEXT, brand TEXT, cat1 TEXT, cat2 TEXT, cat3 TEXT, image TEXT,
   price REAL, was_price REAL, min30_price REAL, real_discount INTEGER, labels TEXT,
-  online_qty REAL, online_in_stock INTEGER, unit_price REAL, unit TEXT, rating INTEGER, rank INTEGER,
+  online_qty REAL, online_in_stock INTEGER, unit_price REAL, unit TEXT, rating INTEGER, rating_count INTEGER, rank INTEGER,
   ean TEXT, dims TEXT, created TEXT, first_seen TEXT, prev_price REAL, price_changed_at TEXT,
   drop_pct REAL, url_path TEXT, active INTEGER, last_price REAL
 );
@@ -53,7 +53,7 @@ def export(src_path, out_dir):
     today = dst.execute("SELECT date('now', 'localtime')").fetchone()[0]
     dst.execute("""INSERT INTO products SELECT sku, name, brand, cat1, cat2, cat3, image,
         CASE WHEN active = 1 THEN price END, was_price, min30_price, real_discount, labels, online_qty,
-        CASE WHEN active = 1 THEN online_in_stock ELSE 0 END, unit_price, unit, rating, rank, ean, dims,
+        CASE WHEN active = 1 THEN online_in_stock ELSE 0 END, unit_price, unit, rating, rating_count, rank, ean, dims,
         substr(created_at, 1, 10), first_seen, prev_price, price_changed_at, drop_pct, url_path, active, price
         FROM src.products WHERE price IS NOT NULL AND (active = 1 OR last_seen >= date(?, '-30 day'))""", (today,))
     # štítek "Novinka" pro produkty, které se objevily za posledních 14 dní (ne při úplně prvním běhu)

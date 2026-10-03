@@ -21,6 +21,7 @@ extension Color {
     static let ponkShelf = Color(light: 0xD8D9DB, dark: 0x2E3033)
     static let ponkLabel = Color(light: 0x262626, dark: 0xF0F0F1)
     static let ponkLabelInk = Color(light: 0xFFFFFF, dark: 0x161718)
+    static let ponkStar = Color(light: 0xE09B00, dark: 0xFFC233)
 }
 
 extension UIColor {
