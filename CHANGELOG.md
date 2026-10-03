@@ -3,6 +3,11 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.5.1
+- Ikona aplikace ve třech variantách pro iOS 18+: světlá, tmavá (průhledný podklad) a tónovaná
+  (bílé tvary s vyříznutým nápisem, v tónovaném režimu dobře čitelná). Generuje tools/make_icons.py.
+- Mapy prodejen: čísla regálů doplněna pro další prodejny (data přes GitHub, bez aktualizace aplikace).
+
 ## 0.5.0
 - Mapa prodejny: v detailu produktu u každé prodejny „Ukázat na mapě prodejny“ – oficiální plánek
   Bauhausu přiblížený na regál, zvýrazněná sekce. Čísla regálů zatím pro Brno Ivanovice a Brno Heršpická

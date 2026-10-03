@@ -52,29 +52,44 @@ def word_path(text: str, box_x: float, box_y: float, box_w: float, box_h: float,
     return pen.getCommands()
 
 
-def icon_svg() -> str:
-    # Cenovka (stejný tvar jako dřív) zmenšená do horní části, dole logo Bauhaus.
-    tag = ("M243 96h158a32 32 0 0 1 32 32v158a32 32 0 0 1-9.4 22.6L282.6 449.4a32 32 0 0 1-45.2 0"
-           "L62.6 274.6a32 32 0 0 1 0-45.2L220.4 105.4A32 32 0 0 1 243 96Z")
-    plate = (64, 330, 384, 104)
-    word = word_path("BAUHAUS", plate[0] + 26, plate[1] + 24, plate[2] - 52, plate[3] - 48, tracking=0.03)
+TAG = ("M243 96h158a32 32 0 0 1 32 32v158a32 32 0 0 1-9.4 22.6L282.6 449.4a32 32 0 0 1-45.2 0"
+       "L62.6 274.6a32 32 0 0 1 0-45.2L220.4 105.4A32 32 0 0 1 243 96Z")
+HOLE = "M386 176a34 34 0 1 0-68 0a34 34 0 1 0 68 0Z"
+PLATE = (64, 330, 384, 104)
+
+
+def icon_svg(variant: str = "light") -> str:
+    """Ikona: cenovka nahoře, logo Bauhaus dole.
+
+    light  – světlý podklad (výchozí ikona)
+    dark   – průhledný podklad, iOS doplní tmavé pozadí (tmavý režim ikon)
+    tinted – jen bílé tvary na průhledném podkladu; iOS je obarví zvolenou barvou.
+             Otvor v cenovce a písmena jsou vyříznuté, aby byly vidět i při tónování.
+    """
+    x, y, w, h = PLATE
+    word = word_path("BAUHAUS", x + 26, y + 24, w - 52, h - 48, tracking=0.03)
+    plate_path = f"M{x} {y}h{w}v{h}h-{w}Z"
+    if variant == "tinted":
+        return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <g transform="translate(118 26) scale(0.58)"><path fill="#FFFFFF" fill-rule="evenodd" d="{TAG} {HOLE}"/></g>
+  <path fill="#FFFFFF" fill-rule="evenodd" d="{plate_path} {word}"/>
+</svg>
+"""
+    bg = {"light": '<rect width="512" height="512" fill="url(#bgl)"/>', "dark": ""}[variant]
     return f"""<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
   <defs>
-    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
-      <stop offset="0" stop-color="#303030"/>
-      <stop offset="1" stop-color="#1B1B1B"/>
+    <linearGradient id="bgl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF"/>
+      <stop offset="1" stop-color="#E9EAEC"/>
     </linearGradient>
     <linearGradient id="red" x1="0" y1="0" x2="0" y2="1">
       <stop offset="0" stop-color="#E01010"/>
       <stop offset="1" stop-color="#B80000"/>
     </linearGradient>
   </defs>
-  <rect width="512" height="512" fill="url(#bg)"/>
-  <g transform="translate(118 26) scale(0.58)">
-    <path fill="url(#red)" d="{tag}"/>
-    <circle cx="352" cy="176" r="34" fill="#2A2A2A"/>
-  </g>
-  <rect x="{plate[0]}" y="{plate[1]}" width="{plate[2]}" height="{plate[3]}" fill="{RED}"/>
+  {bg}
+  <g transform="translate(118 26) scale(0.58)"><path fill="url(#red)" fill-rule="evenodd" d="{TAG} {HOLE}"/></g>
+  <rect x="{x}" y="{y}" width="{w}" height="{h}" fill="{RED}"/>
   <path fill="#FFFFFF" d="{word}"/>
 </svg>
 """
@@ -91,21 +106,30 @@ def logo_svg() -> str:
 """
 
 
+def png(svg: str, size: int) -> Image.Image:
+    return Image.open(io.BytesIO(cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size)))
+
+
 def main() -> None:
-    svg = icon_svg()
-    (ROOT / "web/icon.svg").write_text(svg)
+    light = icon_svg("light")
+    (ROOT / "web/icon.svg").write_text(light)
     (ROOT / "web/bauhaus-logo.svg").write_text(logo_svg())
-    outputs = {
-        ROOT / "ios/Ponk/Resources/Assets.xcassets/AppIcon.appiconset/icon-1024.png": 1024,
-        ROOT / "web/icon-512.png": 512,
-        ROOT / "web/icon-192.png": 192,
-        ROOT / "web/icon-180.png": 180,
-    }
-    for path, size in outputs.items():
-        png = cairosvg.svg2png(bytestring=svg.encode(), output_width=size, output_height=size)
-        # iOS chce ikonu bez průhlednosti
-        Image.open(io.BytesIO(png)).convert("RGB").save(path, optimize=True)
-        print("✓", path.relative_to(ROOT), size)
+    icons = ROOT / "ios/Ponk/Resources/Assets.xcassets/AppIcon.appiconset"
+    # iOS: výchozí ikona bez průhlednosti, tmavá a tónovaná s průhledným podkladem
+    png(light, 1024).convert("RGB").save(icons / "icon-1024.png", optimize=True)
+    png(icon_svg("dark"), 1024).convert("RGBA").save(icons / "icon-1024-dark.png", optimize=True)
+    png(icon_svg("tinted"), 1024).convert("LA").save(icons / "icon-1024-tinted.png", optimize=True)
+    (icons / "Contents.json").write_text("""{ "images" : [
+  { "filename" : "icon-1024.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" },
+  { "appearances" : [ { "appearance" : "luminosity", "value" : "dark" } ],
+    "filename" : "icon-1024-dark.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" },
+  { "appearances" : [ { "appearance" : "luminosity", "value" : "tinted" } ],
+    "filename" : "icon-1024-tinted.png", "idiom" : "universal", "platform" : "ios", "size" : "1024x1024" } ],
+  "info" : { "author" : "xcode", "version" : 1 } }
+""")
+    for path, size in {ROOT / "web/icon-512.png": 512, ROOT / "web/icon-192.png": 192, ROOT / "web/icon-180.png": 180}.items():
+        png(light, size).convert("RGB").save(path, optimize=True)
+    print("✓ ikony: světlá, tmavá, tónovaná")
 
 
 if __name__ == "__main__":
