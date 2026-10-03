@@ -1,3 +1,4 @@
+import CoreGraphics
 import Foundation
 
 // Názvy vlastností záměrně kopírují JSON z lokálního serveru (snake_case),
@@ -69,8 +70,12 @@ struct Item: Codable, Identifiable, Hashable {
     let added: String?
     let added_price: Double?
     let target: Double?
+    // novější data: produkt stažený z nabídky (bez ceny) a jeho poslední cena
+    var active: Int? = nil
+    var last_price: Double? = nil
 
     var id: String { sku }
+    var isListed: Bool { active != 0 }
 }
 
 struct Store: Codable, Hashable, Identifiable {
@@ -267,6 +272,8 @@ struct ProductDetail: Codable {
     let stock: [String: Double]
     let params: [Param]
     let watch: WatchInfo?
+    var active: Int? = nil
+    var last_price: Double? = nil
 
     var pictures: [String] {
         var out: [String] = []
@@ -300,4 +307,25 @@ struct ResultsRoute: Hashable {
 struct CategoryRoute: Hashable {
     var cat1: String?
     var cat2: String?
+}
+
+struct StoreMapLabel: Codable, Hashable {
+    let lo: Int
+    let hi: Int
+    let x: Double, y: Double, w: Double, h: Double
+    let zx: Double?, zy: Double?, zw: Double?, zh: Double?
+
+    var box: CGRect { CGRect(x: x, y: y, width: w, height: h) }
+    var zone: CGRect? {
+        guard let zx, let zy, let zw, let zh else { return nil }
+        return CGRect(x: zx, y: zy, width: zw, height: zh)
+    }
+}
+
+struct StoreMap: Codable {
+    let store: String
+    let image: String
+    let width: Double
+    let height: Double
+    let labels: [StoreMapLabel]
 }

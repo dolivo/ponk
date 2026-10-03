@@ -3,7 +3,7 @@ import SwiftUI
 let sortOptions: [(key: String, title: String)] = [
     ("relevance", "Doporučené"), ("price_asc", "Od nejlevnějšího"), ("price_desc", "Od nejdražšího"),
     ("discount", "Největší skutečná sleva"), ("drop", "Naposledy zlevněné"), ("unit", "Nejnižší cena za jednotku"),
-    ("rating", "Nejlépe hodnocené"), ("newest", "Nejnovější v nabídce"),
+    ("rating", "Nejlépe hodnocené"), ("newest", "Nejnovější v nabídce"), ("newest_seen", "Naposledy přidané"),
 ]
 
 struct ResultsView: View {
@@ -220,6 +220,12 @@ struct ActiveChips: View {
         if query["online"] != nil { out.append(Chip(id: "online", title: "Skladem online") { $0["online"] = nil }) }
         if let d = query["drop_days"], let n = Int(d) {
             out.append(Chip(id: "drop", title: "Zlevněno za \(n) \(plural(n, "den", "dny", "dní"))") { $0["drop_days"] = nil })
+        }
+        if let d = query["restock_days"], let n = Int(d) {
+            out.append(Chip(id: "restock", title: n == 1 ? "Naskladněno od včera" : "Naskladněno za \(n) \(plural(n, "den", "dny", "dní"))") { $0["restock_days"] = nil })
+        }
+        if let d = query["new_days"], let n = Int(d) {
+            out.append(Chip(id: "new", title: "Nové za \(n) \(plural(n, "den", "dny", "dní"))") { $0["new_days"] = nil })
         }
         if let r = query["rating"] { out.append(Chip(id: "rating", title: "Hodnocení \(r)+") { $0["rating"] = nil }) }
         if query["unit"] != nil { out.append(Chip(id: "unit", title: "S cenou za jednotku") { $0["unit"] = nil }) }

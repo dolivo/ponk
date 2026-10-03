@@ -3,6 +3,17 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.5.0
+- Mapa prodejny: v detailu produktu u každé prodejny „Ukázat na mapě prodejny“ – oficiální plánek
+  Bauhausu přiblížený na regál, zvýrazněná sekce. Čísla regálů zatím pro Brno Ivanovice a Brno Heršpická
+  (ponk/storemaps.json, nástroj tools/build_store_maps.py), ostatní prodejny zobrazí plánek bez zvýraznění.
+- Nově naskladněno: denní úloha porovnává sklad se včerejškem (prodejny i e-shop). Filtr „Nově naskladněno“,
+  sekce „Nově skladem“ pro tvoji prodejnu a upozornění, když je hlídaný produkt znovu skladem.
+- Nově v nabídce: štítek „Novinka“ (14 dní), filtr „Nově v nabídce“ a řazení „Naposledy přidané“.
+- Produkty stažené z nabídky zůstávají 30 dní v datech, hlídané tak nezmizí (ukážou „Není v nabídce“).
+- Sekce na úvodní stránce určuje ponk/home_sections.json na GitHubu – nové jdou přidat bez aktualizace aplikace.
+- Sloučeno s 0.4.0 (Katalog, čtečka EAN, mezipaměť obrázků, logo).
+
 ## 0.4.0 – ponk for Bauhaus
 - Nový název **ponk for Bauhaus**, logo Bauhaus v aplikaci (úvod, Více) i v ikoně na ploše
   (iOS i web). Ikony se generují skriptem `tools/make_icons.py`.

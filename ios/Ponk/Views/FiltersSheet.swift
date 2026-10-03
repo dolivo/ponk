@@ -39,6 +39,18 @@ struct FiltersSheet: View {
                             Text("7 dní").tag("7")
                             Text("30 dní").tag("30")
                         }
+                        Picker("Nově naskladněno", selection: field("restock_days")) {
+                            Text("Kdykoli").tag("")
+                            Text("od včera").tag("1")
+                            Text("za 3 dny").tag("3")
+                            Text("za 7 dní").tag("7")
+                        }
+                        Picker("Nově v nabídce", selection: field("new_days")) {
+                            Text("Kdykoli").tag("")
+                            Text("za 7 dní").tag("7")
+                            Text("za 14 dní").tag("14")
+                            Text("za 30 dní").tag("30")
+                        }
                     } footer: {
                         Text("Skutečná sleva se počítá proti nejnižší ceně za posledních 30 dní, ne proti „původní“ ceně.")
                     }

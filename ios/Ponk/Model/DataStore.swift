@@ -79,7 +79,7 @@ final class DataStore {
         do {
             let (sdata, _) = try await URLSession.shared.data(from: base.appendingPathComponent("status.json"))
             let status = try JSONDecoder().decode(Status.self, from: sdata)
-            guard status.schema <= 3 else {
+            guard status.schema <= 4 else {
                 message = "Data jsou pro novější verzi aplikace. Aktualizuj Ponk."
                 return false
             }
@@ -110,6 +110,7 @@ final class DataStore {
             PonkAPI.shared.offlineSince = nil
             message = "Data aktualizována."
             await notifyWatchedDrops()
+            await notifyWatchedRestocks()
             return true
         } catch {
             message = "Data se nepodařilo stáhnout: \(error.localizedDescription)"
@@ -179,6 +180,15 @@ final class DataStore {
 
     func requestNotifications() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .sound, .badge]) { _, _ in }
+    }
+
+    private func notifyWatchedRestocks() async {
+        guard let names = try? await engine.newWatchedRestocks(), !names.isEmpty else { return }
+        let content = UNMutableNotificationContent()
+        content.title = names.count == 1 ? "Znovu skladem: \(names[0])" : "Znovu skladem \(names.count) hlídaných produktů"
+        content.body = names.count == 1 ? "Je na tvé prodejně nebo v e-shopu." : names.prefix(4).joined(separator: "\n")
+        content.sound = .default
+        try? await UNUserNotificationCenter.current().add(UNNotificationRequest(identifier: UUID().uuidString, content: content, trigger: nil))
     }
 
     private func notifyWatchedDrops() async {

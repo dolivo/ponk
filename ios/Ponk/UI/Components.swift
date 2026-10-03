@@ -102,6 +102,9 @@ struct PriceMeta: View {
                     .foregroundStyle(diff < 0 ? Color.ponkGreen : Color.ponkRedDeep)
                     .fontWeight(.semibold)
             }
+            if !item.isListed, let last = item.last_price {
+                Text("naposledy \(money(last)) Kč")
+            }
             if let unit = item.unit_price, let u = item.unit {
                 Text("\(money2(unit)) Kč/\(u)")
             }
@@ -119,7 +122,9 @@ struct Availability: View {
         let qty = item.store_qty ?? 0
         HStack(spacing: 5) {
             Circle().frame(width: 7, height: 7)
-            if qty > 0, let store = app.myStore {
+            if !item.isListed {
+                Text("Není v nabídce")
+            } else if qty > 0, let store = app.myStore {
                 Text("\(app.storeName(store)): \(money(qty)) ks").fontWeight(.semibold)
             } else if item.online_in_stock == 1 {
                 Text("Skladem online")

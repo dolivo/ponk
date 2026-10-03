@@ -24,6 +24,10 @@ actor LocalEngine {
 
     var hasData: Bool { db != nil }
 
+    /// Co stažená data obsahují (starší data z GitHubu nemusí mít nové tabulky).
+    private struct Caps { var active = false; var restock = false; var maps = false }
+    private var caps = Caps()
+
     // MARK: - otevření a příprava dat
 
     func open() throws {
@@ -36,12 +40,16 @@ actor LocalEngine {
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
             INSERT OR IGNORE INTO settings VALUES('store', '888');
             """)
+        try? user.exec("ALTER TABLE watch ADD COLUMN notified_restock TEXT")
         user.close()
         guard FileManager.default.fileExists(atPath: dataPath) else { return }
         let d = try SQLiteDB(path: dataPath)
         // Rychlejší čtení: větší mezipaměť stránek, dočasné tabulky v paměti, soubor mapovaný do paměti.
         try? d.exec("PRAGMA cache_size = -16000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 268435456;")
         try d.run("ATTACH DATABASE ? AS u", [userPath])
+        let cols = Set(try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String })
+        let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
+        caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"))
         db = d
         suggestIndex = nil
     }
@@ -110,7 +118,7 @@ actor LocalEngine {
             let price = try data().scalar("SELECT price FROM products WHERE sku = ?", [sku])
             // keep: rychlé hlídání z nabídky dlaždice nepřepíše už hlídaný produkt (datum a cenu od kdy)
             let verb = (body?["keep"] as? Bool ?? false) ? "INSERT OR IGNORE" : "INSERT OR REPLACE"
-            try user.run("\(verb) INTO \(t("watch")) VALUES(?, ?, ?, ?, NULL)",
+            try user.run("\(verb) INTO \(t("watch"))(sku, added, added_price, target, notified_price) VALUES(?, ?, ?, ?, NULL)",
                          [sku, Self.today(), price, body?["target"] as? Double ?? (body?["target"] as? Int).map(Double.init)])
             return ["ok": true]
         case ("DELETE", "watch"):
@@ -138,6 +146,9 @@ actor LocalEngine {
         case "search": return try search(query)
         case "suggest": return try suggest(query["q"] ?? "")
         case "items": return ["items": try itemsBySKU(many(query, "skus"))]
+        case "storemap":
+            guard parts.count > 1, let m = try storeMap(parts[1]) else { throw EngineError.notFound }
+            return m
         case "categories": return try categories(query)
         case "product":
             guard parts.count > 1, let p = try product(parts[1]) else { throw EngineError.notFound }
@@ -255,6 +266,18 @@ actor LocalEngine {
             w.append("(p.first_seen > ? OR (p.price_changed_at > ? AND p.drop_pct > 0))"); a += [v, v]
         }
         if q["watch"] == "1" { w.append("p.sku IN (SELECT sku FROM u.watch)") }
+        if let v = q["restock_days"].flatMap(Int.init), caps.restock {
+            let since = Self.dayFormatter.string(from: Calendar.current.date(byAdding: .day, value: -v, to: Date()) ?? Date())
+            if let store = q["store"], !store.isEmpty {
+                w.append("EXISTS (SELECT 1 FROM restock r WHERE r.sku = p.sku AND r.store = ? AND r.day > ?)"); a += [store, since]
+            } else {
+                w.append("EXISTS (SELECT 1 FROM restock r WHERE r.sku = p.sku AND r.day > ?)"); a.append(since)
+            }
+        }
+        if let v = q["new_days"].flatMap(Int.init) {
+            let since = Self.dayFormatter.string(from: Calendar.current.date(byAdding: .day, value: -v, to: Date()) ?? Date())
+            w.append("p.first_seen > ? AND p.first_seen > ?"); a += [since, info("first_day") ?? "9999"]
+        }
         for key in q.keys.sorted() where key.hasPrefix("a_") {
             let code = String(key.dropFirst(2))
             let vals = many(q, key)
@@ -276,12 +299,17 @@ actor LocalEngine {
         "unit": "p.unit_price IS NULL, p.unit_price ASC",
         "rating": "COALESCE(p.rating, 0) DESC",
         "newest": "p.created DESC",
+        "newest_seen": "p.first_seen DESC, p.rank DESC",
     ]
 
-    private static let itemCols = """
+    private static let baseItemCols = """
         p.sku, p.name, p.brand, p.image, p.price, p.was_price, p.min30_price, p.real_discount, p.labels,
         p.online_in_stock, p.unit_price, p.unit, p.rating, p.prev_price, p.price_changed_at, p.drop_pct, p.cat3, p.dims
         """
+
+    private var itemCols: String {
+        Self.baseItemCols + (caps.active ? ", p.active, p.last_price" : ", 1 AS active, NULL AS last_price")
+    }
 
     private func itemsFor(_ rows: [[String: Any]], store: String?) throws -> [[String: Any]] {
         guard !rows.isEmpty else { return [] }
@@ -310,7 +338,7 @@ actor LocalEngine {
         let store = (q["store"].flatMap { $0.isEmpty ? nil : $0 }) ?? setting("store")
         let (w, a) = buildWhere(q)
         let total = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
-        let rows = try db.query("SELECT \(Self.itemCols) FROM products p WHERE \(w) ORDER BY \(order) LIMIT ? OFFSET ?",
+        let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(order) LIMIT ? OFFSET ?",
                                 a + [Self.pageSize, (page - 1) * Self.pageSize])
         var out: [String: Any] = ["total": total, "page": page, "pages": (total + Self.pageSize - 1) / Self.pageSize,
                                   "items": try itemsFor(rows, store: store)]
@@ -402,12 +430,12 @@ actor LocalEngine {
         let db = try data()
         let c1 = q["cat1"], c2 = q["cat2"]
         if let c1, let c2 {
-            return ["level": "cat3", "values": try db.query("SELECT cat3 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE cat1 = ? AND cat2 = ? AND cat3 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1, c2])]
+            return ["level": "cat3", "values": try db.query("SELECT cat3 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 = ? AND cat2 = ? AND cat3 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1, c2])]
         }
         if let c1 {
-            return ["level": "cat2", "values": try db.query("SELECT cat2 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE cat1 = ? AND cat2 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1])]
+            return ["level": "cat2", "values": try db.query("SELECT cat2 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 = ? AND cat2 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1])]
         }
-        return ["level": "cat1", "values": try db.query("SELECT cat1 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE cat1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC")]
+        return ["level": "cat1", "values": try db.query("SELECT cat1 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC")]
     }
 
     private struct SuggestIndex {
@@ -439,7 +467,7 @@ actor LocalEngine {
         let db = try data()
         let t = Self.fold(text).trimmingCharacters(in: .whitespaces)
         guard t.count >= 2 else { return ["products": [], "categories": [], "brands": []] }
-        let products = try db.query("SELECT sku, name, price, image FROM products WHERE search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
+        let products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
         let index = try loadSuggestIndex(db)
         let cats = index.categories.lazy.filter { $0.folded.contains(t) }.prefix(5).map(\.row)
         let brands = index.brands.lazy.filter { $0.folded.contains(t) }.prefix(4).map(\.name)
@@ -451,24 +479,49 @@ actor LocalEngine {
     private func home() throws -> [String: Any] {
         let db = try data()
         let store = setting("store") ?? "888"
-        var sections: [[String: Any]] = []
-        func add(_ title: String, _ query: [String: String], _ sql: String, _ args: [Any?] = []) throws {
-            let rows = try db.query("SELECT \(Self.itemCols) FROM products p WHERE p.price IS NOT NULL AND \(sql) LIMIT 12", args)
-            if !rows.isEmpty { sections.append(["title": title, "query": query, "items": try itemsFor(rows, store: store)]) }
-        }
-        try add("Hlídané, které zlevnily", ["watch": "1"],
-                "p.sku IN (SELECT w.sku FROM u.watch w WHERE p.price < w.added_price) ORDER BY p.drop_pct DESC")
-        if let last = info("last_change"), !last.isEmpty {
-            try add("Zlevněno při poslední kontrole", ["drop_days": "1", "sort": "drop"],
-                    "p.price_changed_at = ? AND p.drop_pct > 0 ORDER BY p.drop_pct DESC", [last])
-        }
         let sname = (try db.scalar("SELECT name FROM stores WHERE code = ?", [store]) as? String) ?? store
-        try add("Výprodej skladem: \(sname)", ["label": "sell_off", "store": store, "sort": "discount"],
-                "p.labels LIKE '%,sell_off,%' AND EXISTS (SELECT 1 FROM stock s WHERE s.sku = p.sku AND s.store = ? AND s.qty > 0) ORDER BY COALESCE(p.real_discount, 0) DESC",
-                [store])
-        try add("Největší skutečné slevy", ["disc": "30", "sort": "discount"],
-                "p.real_discount >= 30 ORDER BY p.real_discount DESC")
+        var sections: [[String: Any]] = []
+        let watched = try db.query("""
+            SELECT \(itemCols) FROM products p WHERE p.price IS NOT NULL
+            AND p.sku IN (SELECT w.sku FROM u.watch w WHERE p.price < w.added_price) ORDER BY p.drop_pct DESC LIMIT 12
+            """)
+        if !watched.isEmpty {
+            sections.append(["title": "Hlídané, které zlevnily", "query": ["watch": "1"], "items": try itemsFor(watched, store: store)])
+        }
+        // Sekce určuje soubor ponk/home_sections.json na GitHubu – nové jdou přidat bez aktualizace aplikace.
+        var defs: [[String: Any]] = []
+        if let json = info("home_sections"), let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]] {
+            defs = parsed
+        } else {
+            defs = [["title": "Zlevněno při poslední kontrole", "query": ["drop_days": "1", "sort": "drop"]],
+                    ["title": "Výprodej skladem: {store_name}", "query": ["label": "sell_off", "store": "{store}", "sort": "discount"]],
+                    ["title": "Největší skutečné slevy", "query": ["disc": "30", "sort": "discount"]]]
+        }
+        for def in defs {
+            guard let title = def["title"] as? String, let raw = def["query"] as? [String: Any] else { continue }
+            var q: [String: String] = [:]
+            for (k, v) in raw {
+                q[k] = "\(v)".replacingOccurrences(of: "{store}", with: store).replacingOccurrences(of: "{store_name}", with: sname)
+            }
+            if q["restock_days"] != nil, !caps.restock { continue }
+            let (w, a) = buildWhere(q)
+            let order = Self.sorts[q["sort"] ?? "relevance"] ?? Self.sorts["relevance"]!
+            let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(order) LIMIT 12", a)
+            if !rows.isEmpty {
+                sections.append(["title": title.replacingOccurrences(of: "{store_name}", with: sname), "query": q,
+                                 "items": try itemsFor(rows, store: store)])
+            }
+        }
         return ["sections": sections, "watched_drops": 0]
+    }
+
+    // MARK: - mapa prodejny
+
+    private func storeMap(_ store: String) throws -> [String: Any]? {
+        let db = try data()
+        guard caps.maps, let m = try db.query("SELECT image, width, height FROM store_maps WHERE store = ?", [store]).first else { return nil }
+        let labels = try db.query("SELECT lo, hi, x, y, w, h, zx, zy, zw, zh FROM store_map_labels WHERE store = ? ORDER BY lo", [store])
+        return ["store": store, "image": m["image"] ?? "", "width": m["width"] ?? 0, "height": m["height"] ?? 0, "labels": labels]
     }
 
     private func product(_ sku: String) throws -> [String: Any]? {
@@ -500,7 +553,7 @@ actor LocalEngine {
     private func itemsBySKU(_ skus: [String]) throws -> [[String: Any]] {
         guard !skus.isEmpty else { return [] }
         let list = Array(skus.prefix(50))
-        let rows = try data().query("SELECT \(Self.itemCols) FROM products p WHERE p.sku IN (\(Array(repeating: "?", count: list.count).joined(separator: ",")))", list)
+        let rows = try data().query("SELECT \(itemCols) FROM products p WHERE p.sku IN (\(Array(repeating: "?", count: list.count).joined(separator: ",")))", list)
         let order = Dictionary(list.enumerated().map { ($1, $0) }, uniquingKeysWith: { a, _ in a })
         let sorted = rows.sorted { (order[$0["sku"] as? String ?? ""] ?? 0) < (order[$1["sku"] as? String ?? ""] ?? 0) }
         return try itemsFor(sorted, store: setting("store"))
@@ -509,7 +562,7 @@ actor LocalEngine {
     private func watchItems() throws -> [[String: Any]] {
         guard let db else { return [] }
         let rows = try db.query("""
-            SELECT \(Self.itemCols), w.added, w.added_price, w.target FROM u.watch w
+            SELECT \(itemCols), w.added, w.added_price, w.target FROM u.watch w
             JOIN products p ON p.sku = w.sku ORDER BY (p.price < w.added_price) DESC, w.added DESC
             """)
         return try itemsFor(rows, store: setting("store"))
@@ -533,6 +586,19 @@ actor LocalEngine {
             out.append(["id": r["id"] ?? 0, "name": r["name"] ?? "", "query": query, "fresh": fresh, "total": total])
         }
         return out
+    }
+
+    /// Hlídané produkty, které jsou znovu skladem na mé prodejně nebo v e-shopu (od posledního upozornění).
+    func newWatchedRestocks() throws -> [String] {
+        guard let db, caps.restock else { return [] }
+        let store = setting("store") ?? "888"
+        let rows = try db.query("""
+            SELECT p.sku, p.name, MAX(r.day) AS day FROM u.watch w JOIN products p ON p.sku = w.sku
+            JOIN restock r ON r.sku = w.sku AND r.store IN (?, 'eshop')
+            WHERE r.day > COALESCE(w.notified_restock, w.added) GROUP BY p.sku
+            """, [store])
+        for r in rows { try db.run("UPDATE u.watch SET notified_restock = ? WHERE sku = ?", [r["day"], r["sku"]]) }
+        return rows.compactMap { $0["name"] as? String }
     }
 
     /// Hlídané produkty, které zlevnily a ještě o nich nepřišlo upozornění.

@@ -70,6 +70,11 @@ struct ProductView: View {
             .padding(.horizontal, 14)
 
             VStack(alignment: .leading, spacing: 8) {
+                if p.active == 0 {
+                    Label("Tento produkt už Bauhaus nenabízí\(p.last_price.map { " (naposledy \(money($0)) Kč)" } ?? "").", systemImage: "xmark.circle")
+                        .font(.ponk(15, .semibold))
+                        .foregroundStyle(Color.ponkRedDeep)
+                }
                 PriceTag(price: p.price, discount: p.real_discount, big: true)
                 if let d = p.real_discount, d > 0, let min30 = p.min30_price {
                     Text("O \(Text("\(d) %").foregroundStyle(Color.ponkRedDeep).fontWeight(.heavy)) levnější než nejnižší cena za posledních 30 dní (\(money(min30)) Kč).")
@@ -246,15 +251,18 @@ private struct StockList: View {
         VStack(spacing: 0) {
             row(name: "E-shop", qty: p.online_in_stock == 1 ? p.online_qty : nil, position: nil, mine: false)
             ForEach(stores) { s in
-                row(name: s.name, qty: p.stock[s.code], position: p.positions[s.code], mine: s.code == my)
+                row(name: s.name, qty: p.stock[s.code], position: p.positions[s.code], mine: s.code == my, store: s.code)
             }
         }
         .background(Color.ponkSurface)
         .clipShape(RoundedRectangle(cornerRadius: 6))
         .overlay(RoundedRectangle(cornerRadius: 6).strokeBorder(Color.ponkLine))
+        .sheet(item: $mapFor) { req in StoreMapSheet(request: req) }
     }
 
-    private func row(name: String, qty: Double?, position: Position?, mine: Bool) -> some View {
+    @State private var mapFor: MapRequest?
+
+    private func row(name: String, qty: Double?, position: Position?, mine: Bool, store: String? = nil) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack {
                 Text(name).font(.ponk(16, .semibold))
@@ -279,6 +287,16 @@ private struct StockList: View {
                 .padding(.vertical, 3)
                 .foregroundStyle(Color.ponkLabelInk)
                 .background(Color.ponkLabel, in: RoundedRectangle(cornerRadius: 2))
+                if let store {
+                    Button {
+                        mapFor = MapRequest(store: store, storeName: name, shelf: shelf, field: pos.field)
+                    } label: {
+                        Label("Ukázat na mapě prodejny", systemImage: "map")
+                            .font(.ponk(15, .semibold, relativeTo: .footnote))
+                    }
+                    .buttonStyle(.borderless)
+                    .tint(Color.ponkRedDeep)
+                }
             }
         }
         .padding(.horizontal, 12)

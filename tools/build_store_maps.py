@@ -4,7 +4,9 @@
 Bauhaus má pro každou prodejnu plánek (CMS blok product_finder_<kód>), kde jsou
 čísla regálů v červených rámečcích, např. "426" nebo rozsah "142-162". Skript
 najde rámečky, přečte čísla (tesseract) a ke každému určí barevnou zónu, ve které
-leží. Výsledek uloží do ponk/storemaps.json; denní export ho přibalí do dat pro telefon.
+leží. Automatické čtení čísel z JPEG plánků je nespolehlivé, proto se výsledek musí ručně
+zkontrolovat (čísla a polohy) – ponk/storemaps.json obsahuje už zkontrolovaná data.
+Denní export ho přibalí do dat pro telefon.
 
   python3 tools/build_store_maps.py            # potřebuje: tesseract, numpy, scipy, pillow
 """
@@ -23,7 +25,7 @@ from scipy import ndimage
 
 CMS = "https://www.bauhaus.cz/api/catalog/vue_storefront_catalog/cms_block/_search"
 UA = {"User-Agent": "Ponk/0.5 (open-source)", "Content-Type": "application/json"}
-OUT = Path(__file__).resolve().parent.parent / "ponk" / "storemaps.json"
+OUT = Path(__file__).resolve().parent.parent / "ponk" / "storemaps.candidates.json"  # návrh k ruční kontrole
 
 
 def fetch(url, body=None):
