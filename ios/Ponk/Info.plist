@@ -12,6 +12,7 @@
 	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key><true/>
+	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
 	<key>NSCameraUsageDescription</key><string>Kamera slouží ke čtení čárových kódů zboží v prodejně.</string>
 	<key>UILaunchScreen</key>
 	<dict><key>UIColorName</key><string>LaunchBackground</string></dict>

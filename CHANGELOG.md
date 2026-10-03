@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.6.1
+- Oprava: logo Bauhausu se v aplikaci nezobrazovalo (v liště ani v animaci bylo jen „ponk“).
+  Logo má teď pevný poměr stran a je jako ostrý PNG ve 3× rozlišení.
+- Úvodní animace běží na plné obnovovací frekvenci displeje (ProMotion 120 Hz,
+  CADisableMinimumFrameDurationOnPhone), začne až po vykreslení rozhraní a animuje jednu vrstvu.
+- Štítek „Výprodej“ se teď jmenuje **Doprodej**, stejně jako na bauhaus.cz (je to tentýž štítek
+  sell_off – samostatný „doprodej“ Bauhaus nemá). Filtr, rychlé filtry, dlaždice i web.
+- Filtry: Nabídka (Doprodej, Akce, Doprava zdarma…) je úplně nahoře, Kategorie úplně dole (iOS i web).
+
 ## 0.6.0
 - Úvodní animace po spuštění (~1,5 s): logo pružně naskočí, pod ním „ponk“, pak se plynule
   rozplyne do aplikace. Navazuje na launch screen ve stejné barvě pozadí (colorset LaunchBackground).

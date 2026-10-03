@@ -153,7 +153,7 @@ function avail(it) {
 
 function tile(it) {
   const flags = [];
-  if (it.labels?.includes("sell_off")) flags.push('<span class="flag red">Výprodej</span>');
+  if (it.labels?.includes("sell_off")) flags.push('<span class="flag red">Doprodej</span>');
   if (it.price_changed_at && it.price_changed_at === state.meta?.last_change && it.drop_pct > 0) flags.push('<span class="flag green">Zlevněno</span>');
   if (it.labels?.includes("only_online")) flags.push('<span class="flag">Jen online</span>');
   const name = it.brand && it.name.startsWith(it.brand) ? `<b>${esc(it.brand)}</b>${esc(it.name.slice(it.brand.length))}` : esc(it.name);
@@ -180,8 +180,8 @@ async function Home() {
   const home = await api("home");
   const store = m.settings.store;
   const quick = [
-    ["Výprodej", { label: "sell_off", sort: "discount" }],
-    ["Výprodej skladem", { label: "sell_off", store, sort: "discount" }],
+    ["Doprodej", { label: "sell_off", sort: "discount" }],
+    ["Doprodej skladem", { label: "sell_off", store, sort: "discount" }],
     ["Zlevněno za 7 dní", { drop_days: 7, sort: "drop" }],
     ["Sleva 50 % a víc", { disc: 50, sort: "discount" }],
     ["Doprava zdarma", { label: "free_shipping" }],
@@ -220,7 +220,7 @@ const results = { params: null, data: null, items: [], view: localStorage.getIte
 function resultsTitle(p) {
   if (p.get("q")) return `„${p.get("q")}“`;
   if (p.get("cat3") || p.get("cat2") || p.get("cat1")) return p.get("cat3") || p.get("cat2") || p.get("cat1");
-  if (p.get("label") === "sell_off") return "Výprodej";
+  if (p.get("label") === "sell_off") return "Doprodej";
   if (p.get("drop_days")) return "Zlevněné zboží";
   return p.get("q") ? "Nabídka" : "Katalog";
 }
@@ -340,10 +340,7 @@ function filterPanel(f, p) {
   const grp = (title, body, cnt = "") => `<div class="fgroup"><h3>${title}${cnt ? `<span class="cnt">${cnt}</span>` : ""}</h3>${body}</div>`;
   let html = "";
 
-  if (f.categories.values.length || up) {
-    html += grp("Kategorie", `${up ? `<button class="catlink up" data-up="${up.join(",")}">← ${esc(p.get("cat2") && !p.get("cat3") ? p.get("cat1") : p.get("cat3") ? p.get("cat2") : "Všechny kategorie")}</button>` : ""}
-      ${f.categories.values.filter((c) => c.value !== p.get(catKey)).slice(0, 40).map((c) => `<button class="catlink" data-cat="${catKey}" data-v="${esc(c.value)}"><span>${esc(c.value)}</span><span class="c">${money(c.count)}</span></button>`).join("")}`);
-  }
+  if (f.labels.length) html += grp("Nabídka", f.labels.map((l) => `<label class="check"><input type="checkbox" data-multi="label" value="${l.value}" ${labels.includes(l.value) ? "checked" : ""}><span>${esc(l.label)}</span><span class="c">${money(l.count)}</span></label>`).join(""));
   html += grp("Dostupnost", `
     <label class="toggle"><span>Skladem na prodejně ${esc(storeName(store))}</span><input type="checkbox" data-toggle="store" data-on="${store}" ${p.get("store") ? "checked" : ""}></label>
     <label class="toggle"><span>Skladem v e-shopu</span><input type="checkbox" data-toggle="online" data-on="1" ${p.get("online") ? "checked" : ""}></label>`);
@@ -352,7 +349,6 @@ function filterPanel(f, p) {
   html += grp("Skutečná sleva", `<p class="muted" style="margin:0 0 8px;font-size:14px">Počítá se proti nejnižší ceně za posledních 30 dní, ne proti „původní“ ceně.</p>
     <div class="chipset">${[10, 20, 30, 50, 70].map((v) => `<button class="chip" data-set="disc" data-v="${v}" aria-pressed="${p.get("disc") == v}">${v} %+</button>`).join("")}</div>`);
   html += grp("Zlevněno za posledních", `<div class="chipset">${[[1, "1 den"], [7, "7 dní"], [30, "30 dní"]].map(([v, t]) => `<button class="chip" data-set="drop_days" data-v="${v}" aria-pressed="${p.get("drop_days") == v}">${t}</button>`).join("")}</div>`);
-  if (f.labels.length) html += grp("Nabídka", f.labels.map((l) => `<label class="check"><input type="checkbox" data-multi="label" value="${l.value}" ${labels.includes(l.value) ? "checked" : ""}><span>${esc(l.label)}</span><span class="c">${money(l.count)}</span></label>`).join(""));
   if (f.brands.length) {
     const top = f.brands.slice(0, 8), selectedExtra = f.brands.slice(8).filter((b) => brands.includes(b.value));
     html += grp("Značka", `${f.brands.length > 12 ? `<input class="field" data-brandfilter placeholder="Najít značku" style="margin-bottom:6px">` : ""}
@@ -366,6 +362,11 @@ function filterPanel(f, p) {
     const open = sel.length > 0;
     html += `<div class="fgroup"><button class="fhead" aria-expanded="${open}" data-collapse><span>${esc(a.label)}</span><span class="cnt">${sel.length || ""}</span></button>
       <div ${open ? "" : "hidden"}>${a.values.map((v) => `<label class="check"><input type="checkbox" data-multi="a_${a.code}" value="${esc(v.value)}" ${sel.includes(v.value) ? "checked" : ""}><span>${esc(v.value)}</span><span class="c">${money(v.count)}</span></label>`).join("")}</div></div>`;
+  }
+  // kategorie až na konci, nahoře je Nabídka (Doprodej, Akce…)
+  if (f.categories.values.length || up) {
+    html += grp("Kategorie", `${up ? `<button class="catlink up" data-up="${up.join(",")}">← ${esc(p.get("cat2") && !p.get("cat3") ? p.get("cat1") : p.get("cat3") ? p.get("cat2") : "Všechny kategorie")}</button>` : ""}
+      ${f.categories.values.filter((c) => c.value !== p.get(catKey)).slice(0, 40).map((c) => `<button class="catlink" data-cat="${catKey}" data-v="${esc(c.value)}"><span>${esc(c.value)}</span><span class="c">${money(c.count)}</span></button>`).join("")}`);
   }
   return html;
 }

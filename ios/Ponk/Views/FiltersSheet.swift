@@ -12,7 +12,15 @@ struct FiltersSheet: View {
         NavigationStack {
             Form {
                 if let f = facets {
-                    categorySection(f)
+                    if !f.labels.isEmpty {
+                        Section("Nabídka") {
+                            ForEach(f.labels) { l in
+                                Toggle(isOn: multi("label", l.value)) {
+                                    LabeledContent(l.label, value: money(Double(l.count)))
+                                }
+                            }
+                        }
+                    }
 
                     Section("Dostupnost") {
                         Toggle("Skladem na prodejně \(app.storeName(app.myStore))", isOn: flag("store", on: app.myStore ?? "888"))
@@ -55,16 +63,6 @@ struct FiltersSheet: View {
                         Text("Skutečná sleva se počítá proti nejnižší ceně za posledních 30 dní, ne proti „původní“ ceně.")
                     }
 
-                    if !f.labels.isEmpty {
-                        Section("Nabídka") {
-                            ForEach(f.labels) { l in
-                                Toggle(isOn: multi("label", l.value)) {
-                                    LabeledContent(l.label, value: money(Double(l.count)))
-                                }
-                            }
-                        }
-                    }
-
                     if !f.brands.isEmpty {
                         Section {
                             NavigationLink {
@@ -95,6 +93,9 @@ struct FiltersSheet: View {
                             }
                         }
                     }
+
+                    // kategorie až na konci, nahoře je Nabídka (Doprodej, Akce…)
+                    categorySection(f)
                 } else {
                     ProgressView().frame(maxWidth: .infinity)
                 }

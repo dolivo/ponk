@@ -1,7 +1,7 @@
 import SwiftUI
 import UIKit
 
-/// Logo Bauhaus: originál z bauhaus.cz jako vektorové PDF v Assets („BauhausLogo“).
+/// Logo Bauhaus: originál z bauhaus.cz v Assets („BauhausLogo“, PNG ve 3× rozlišení).
 /// Kdyby obrázek chyběl, kreslí se náhradní červený obdélník s nápisem.
 struct BauhausLogo: View {
     var height: CGFloat = 26
@@ -11,11 +11,14 @@ struct BauhausLogo: View {
 
     var body: some View {
         Group {
-            if let original = Self.original {
+            if let original = Self.original, original.size.height > 0 {
+                // pevná šířka podle poměru stran – v liště ani jinde se logo nesmrskne
                 Image(uiImage: original)
+                    .renderingMode(.original)
                     .resizable()
-                    .scaledToFit()
-                    .frame(height: height)
+                    .interpolation(.high)
+                    .frame(width: height * original.size.width / original.size.height, height: height)
+                    .fixedSize()
             } else {
                 Text("BAUHAUS")
                     .font(.custom("BarlowSemiCondensed-ExtraBold", fixedSize: height * 0.64))
@@ -106,7 +109,9 @@ extension View {
 
 /// Úvodní animace po spuštění. Navazuje na launch screen (stejná barva pozadí),
 /// logo pružně naskočí, pod ním „ponk“, pak se celé jemně rozplyne (~1,5 s).
-/// Se zapnutým Omezit pohyb jen krátké prolnutí.
+/// Běží na plné obnovovací frekvenci displeje (ProMotion 120 Hz díky
+/// CADisableMinimumFrameDurationOnPhone) a animuje jen průhlednost, měřítko a posun,
+/// které GPU zvládne bez překreslování obsahu. Se zapnutým Omezit pohyb jen krátké prolnutí.
 struct SplashView: View {
     var onFinish: () -> Void
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
@@ -129,6 +134,7 @@ struct SplashView: View {
                     .offset(y: textIn ? 0 : 18)
             }
             .scaleEffect(out ? 1.12 : 1)
+            .compositingGroup() // logo + text jako jedna vrstva, animace bez zadrhávání
         }
         .opacity(out ? 0 : 1)
         .allowsHitTesting(!out)
@@ -137,6 +143,8 @@ struct SplashView: View {
     }
 
     private func run() async {
+        // první snímky po spuštění kreslí celé rozhraní pod animací – počkáme, až se uvolní
+        try? await Task.sleep(for: .milliseconds(120))
         if reduceMotion {
             withAnimation(.easeOut(duration: 0.2)) { logoIn = true; textIn = true }
             try? await Task.sleep(for: .milliseconds(450))
@@ -148,7 +156,7 @@ struct SplashView: View {
         withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) { logoIn = true }
         try? await Task.sleep(for: .milliseconds(200))
         withAnimation(.spring(response: 0.5, dampingFraction: 0.72)) { textIn = true }
-        try? await Task.sleep(for: .milliseconds(800))
+        try? await Task.sleep(for: .milliseconds(700))
         withAnimation(.spring(response: 0.42, dampingFraction: 0.9)) { out = true }
         try? await Task.sleep(for: .milliseconds(420))
         onFinish()
