@@ -53,12 +53,16 @@ actor LocalEngine {
                     ratingCount: cols.contains("rating_count"))
         db = d
         suggestIndex = nil
+        speller = nil
+        resolved = [:]
     }
 
     func closeData() {
         db?.close()
         db = nil
         suggestIndex = nil
+        speller = nil
+        resolved = [:]
     }
 
     /// Po stažení: doplní vyhledávací sloupec a indexy (v souboru nejsou kvůli velikosti).
@@ -67,9 +71,15 @@ actor LocalEngine {
         defer { d.close() }
         let cols = try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String }
         if !cols.contains("search") { try d.exec("ALTER TABLE products ADD COLUMN search TEXT") }
-        let rows = try d.query("SELECT sku, name, brand, cat2, cat3, ean FROM products")
+        // Klíčová slova: kromě názvu, značky a kategorie se hledá i v parametrech ("li-ion", "18 v", "dub")
+        let rows = try d.query("""
+            SELECT p.sku, p.name, p.brand, p.cat2, p.cat3, p.ean,
+                   (SELECT GROUP_CONCAT(av.value, ' ') FROM product_attrs pa JOIN attr_values av ON av.id = pa.vid
+                    WHERE pa.sku = p.sku) AS params
+            FROM products p
+            """)
         let updates: [[Any?]] = rows.map { r in
-            let text = ["name", "brand", "cat2", "cat3", "sku", "ean"].compactMap { r[$0] as? String }.joined(separator: " ")
+            let text = ["name", "brand", "cat2", "cat3", "sku", "ean", "params"].compactMap { r[$0] as? String }.joined(separator: " ")
             return [fold(text), r["sku"]]
         }
         try d.transaction {
@@ -233,10 +243,13 @@ actor LocalEngine {
     private func buildWhere(_ q: [String: String], skip: Set<String> = []) -> (String, [Any?]) {
         var w = ["p.price IS NOT NULL"]
         var a: [Any?] = []
-        let text = Self.fold(q["q"] ?? "")
-        let tokens = text.components(separatedBy: CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-+._")).inverted)
-            .filter { !$0.isEmpty }.prefix(8)
-        for tok in tokens { w.append("p.search LIKE ?"); a.append("%\(tok)%") }
+        let r = resolve(q)
+        if r.any, !r.tokens.isEmpty {
+            w.append("(" + r.tokens.map { _ in "p.search LIKE ?" }.joined(separator: " OR ") + ")")
+            a += r.tokens.map { "%\($0)%" }
+        } else {
+            for tok in r.tokens { w.append("p.search LIKE ?"); a.append("%\(tok)%") }
+        }
         if !skip.contains("cat") {
             for key in ["cat1", "cat2", "cat3"] { if let v = q[key], !v.isEmpty { w.append("p.\(key) = ?"); a.append(v) } }
         }
@@ -331,6 +344,87 @@ actor LocalEngine {
         }
     }
 
+    // MARK: - klíčová slova a oprava překlepů
+
+    struct Resolved {
+        var tokens: [String] = []
+        /// Opravený dotaz k zobrazení ("Zobrazuji výsledky pro …"), nil když nebylo co opravit.
+        var corrected: String?
+        /// Žádný produkt neobsahuje všechna slova → stačí kterékoli (řadí se podle počtu shod).
+        var any = false
+    }
+
+    private var speller: Speller?
+    private var resolved: [String: Resolved] = [:]
+
+    private static let tokenChars = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-+._")).inverted
+
+    private func loadSpeller(_ db: SQLiteDB) throws -> Speller {
+        if let speller { return speller }
+        if (try? db.scalar("SELECT 1 FROM sqlite_master WHERE name = 'vocab'")) as? Int == 1 {
+            let entries = try db.query("SELECT word, display, freq FROM vocab").compactMap { r -> (word: String, display: String, freq: Int)? in
+                guard let w = r["word"] as? String else { return nil }
+                return (w, r["display"] as? String ?? w, r["freq"] as? Int ?? 1)
+            }
+            let s = Speller(entries: entries)
+            speller = s
+            return s
+        }
+        var texts: [String] = []
+        for r in try db.query("SELECT name, brand, cat2, cat3 FROM products WHERE price IS NOT NULL") {
+            texts.append(["name", "brand", "cat2", "cat3"].compactMap { r[$0] as? String }.joined(separator: " "))
+        }
+        for r in try db.query("SELECT DISTINCT value FROM attr_values") { if let v = r["value"] as? String { texts.append(v) } }
+        let s = Speller(texts: texts, fold: Self.fold)
+        speller = s
+        return s
+    }
+
+    /// Rozloží hledaný text na slova. Když nic neodpovídá, opraví slova s překlepem
+    /// a případně přepne na „kterékoli slovo“. Parametr exact=1 opravu vypne.
+    private func resolve(_ q: [String: String]) -> Resolved {
+        let raw = (q["q"] ?? "").trimmingCharacters(in: .whitespaces)
+        let tokens = Array(Self.fold(raw).components(separatedBy: Self.tokenChars).filter { !$0.isEmpty }.prefix(8))
+        guard !tokens.isEmpty else { return Resolved() }
+        if q["exact"] == "1" { return Resolved(tokens: tokens) }
+        if let hit = resolved[raw] { return hit }
+        let result = (try? computeResolve(raw: raw, tokens: tokens)) ?? Resolved(tokens: tokens)
+        if resolved.count > 200 { resolved.removeAll() }
+        resolved[raw] = result
+        return result
+    }
+
+    private func count(_ tokens: [String], any: Bool = false) throws -> Int {
+        let w = tokens.map { _ in "search LIKE ?" }.joined(separator: any ? " OR " : " AND ")
+        return (try data().scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND (\(w))",
+                                  tokens.map { "%\($0)%" }) as? Int) ?? 0
+    }
+
+    private func computeResolve(raw: String, tokens: [String]) throws -> Resolved {
+        if try count(tokens) > 0 { return Resolved(tokens: tokens) }   // běžný případ: bez překlepu
+        let db = try data()
+        let speller = try loadSpeller(db)
+        var fixed = tokens
+        var shown = Self.tokenize(display: raw)
+        var changed = false
+        for (i, tok) in tokens.enumerated() {
+            if tok.count < 4 || tok.allSatisfy(\.isNumber) { continue }
+            if try count([tok]) > 0 { continue }                          // slovo existuje
+            guard let m = speller.correct(tok) else { continue }
+            fixed[i] = m.word
+            if i < shown.count { shown[i] = m.display }
+            changed = true
+        }
+        let corrected = changed ? shown.joined(separator: " ") : nil
+        if try count(fixed) > 0 { return Resolved(tokens: fixed, corrected: corrected) }
+        if fixed.count > 1, try count(fixed, any: true) > 0 { return Resolved(tokens: fixed, corrected: corrected, any: true) }
+        return Resolved(tokens: fixed, corrected: corrected)
+    }
+
+    private static func tokenize(display s: String) -> [String] {
+        s.lowercased().components(separatedBy: tokenChars).filter { !$0.isEmpty }
+    }
+
     // MARK: - hledání + fasety
 
     private func search(_ q: [String: String]) throws -> [String: Any] {
@@ -340,10 +434,18 @@ actor LocalEngine {
         let store = (q["store"].flatMap { $0.isEmpty ? nil : $0 }) ?? setting("store")
         let (w, a) = buildWhere(q)
         let total = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
-        let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(order) LIMIT ? OFFSET ?",
-                                a + [Self.pageSize, (page - 1) * Self.pageSize])
+        let r = resolve(q)
+        var orderSQL = order, orderArgs: [Any?] = []
+        if r.any, (q["sort"] ?? "relevance") == "relevance" {
+            orderSQL = "(" + r.tokens.map { _ in "(p.search LIKE ?)" }.joined(separator: " + ") + ") DESC, " + order
+            orderArgs = r.tokens.map { "%\($0)%" }
+        }
+        let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(orderSQL) LIMIT ? OFFSET ?",
+                                a + orderArgs + [Self.pageSize, (page - 1) * Self.pageSize])
         var out: [String: Any] = ["total": total, "page": page, "pages": (total + Self.pageSize - 1) / Self.pageSize,
                                   "items": try itemsFor(rows, store: store)]
+        if let c = r.corrected { out["corrected"] = c }
+        if r.any { out["partial"] = true }
         if q["facets"] != "0" { out["facets"] = try facets(q) }
         return out
     }
@@ -469,11 +571,23 @@ actor LocalEngine {
         let db = try data()
         let t = Self.fold(text).trimmingCharacters(in: .whitespaces)
         guard t.count >= 2 else { return ["products": [], "categories": [], "brands": []] }
-        let products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
+        var products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
+        var corrected: String?
+        if products.isEmpty {
+            let r = resolve(["q": text])
+            if let c = r.corrected, !r.tokens.isEmpty {
+                corrected = c
+                let w = r.tokens.map { _ in "search LIKE ?" }.joined(separator: r.any ? " OR " : " AND ")
+                products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND (\(w)) ORDER BY rank DESC LIMIT 6",
+                                        r.tokens.map { "%\($0)%" })
+            }
+        }
         let index = try loadSuggestIndex(db)
         let cats = index.categories.lazy.filter { $0.folded.contains(t) }.prefix(5).map(\.row)
         let brands = index.brands.lazy.filter { $0.folded.contains(t) }.prefix(4).map(\.name)
-        return ["products": products, "categories": Array(cats), "brands": Array(brands)]
+        var out: [String: Any] = ["products": products, "categories": Array(cats), "brands": Array(brands)]
+        if let corrected { out["corrected"] = corrected }
+        return out
     }
 
     // MARK: - úvod, detail, hlídané

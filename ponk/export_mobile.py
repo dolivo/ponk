@@ -9,6 +9,8 @@ Indexy a vyhledávací sloupec si telefon dopočítá sám (menší stahování)
 import hashlib
 import json
 import os
+import re
+from collections import Counter
 import lzma
 import sqlite3
 import sys
@@ -16,6 +18,7 @@ import zlib
 from datetime import datetime, timezone
 
 from . import __version__
+from .db import fold
 
 SCHEMA_VERSION = 3
 
@@ -38,7 +41,26 @@ CREATE TABLE attr_values(id INTEGER PRIMARY KEY, code TEXT, value TEXT);
 CREATE TABLE product_attrs(sku TEXT, vid INTEGER, PRIMARY KEY(sku, vid)) WITHOUT ROWID;
 CREATE TABLE stores(code TEXT PRIMARY KEY, name TEXT, city TEXT);
 CREATE TABLE info(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE vocab(word TEXT PRIMARY KEY, display TEXT, freq INTEGER) WITHOUT ROWID;
 """
+
+
+WORD = re.compile(r"\w+", re.UNICODE)
+
+
+def build_vocab(con):
+    """Slova z názvů, značek, kategorií a parametrů: bez diakritiky → nejčastější zápis + četnost."""
+    count, shown = Counter(), {}
+    texts = [" ".join(filter(None, r)) for r in con.execute("SELECT name, brand, cat2, cat3 FROM products WHERE price IS NOT NULL")]
+    texts += [r[0] for r in con.execute("SELECT DISTINCT value FROM attr_values")]
+    for text in texts:
+        for w in WORD.findall((text or "").lower()):
+            if len(w) < 3 or w.isdigit() or "_" in w:
+                continue
+            key = fold(w)
+            count[key] += 1
+            shown.setdefault(key, Counter())[w] += 1
+    return [(k, shown[k].most_common(1)[0][0], n) for k, n in count.items()]
 
 
 def export(src_path, out_dir):
@@ -82,11 +104,13 @@ def export(src_path, out_dir):
     dst.execute("INSERT OR IGNORE INTO product_attrs SELECT pa.sku, av.id FROM src.product_attrs pa "
                 "JOIN products p ON p.sku = pa.sku JOIN attr_values av ON av.code = pa.code AND av.value = pa.value")
     dst.execute("DROP INDEX tmp_av")
+    # slovník pro opravu překlepů ve vyhledávání (telefon ho jen načte)
+    dst.executemany("INSERT INTO vocab VALUES(?,?,?)", build_vocab(dst))
     dst.execute("INSERT INTO stores SELECT * FROM src.stores")
     last = dst.execute("SELECT finished FROM src.runs WHERE status='ok' ORDER BY id DESC LIMIT 1").fetchone()
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     counts = {t: dst.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
-              for t in ("products", "price_history", "stock", "product_attrs", "restock", "store_map_labels")}
+              for t in ("products", "price_history", "stock", "product_attrs", "restock", "store_map_labels", "vocab")}
     sections_path = os.path.join(os.path.dirname(__file__), "home_sections.json")
     sections = open(sections_path, encoding="utf-8").read() if os.path.exists(sections_path) else "[]"
     info = {"schema": str(SCHEMA_VERSION), "generated_at": generated, "last_run": last[0] if last else "",

@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.8.0
+- Vyhledávání podle klíčových slov: hledá se i v parametrech produktů (např. „li-ion 18 v“, „dub“).
+- Oprava překlepů: „sroubvak“ najde šroubováky, „vrtcka makta“ vrtačky Makita, „dlaždyce“ dlaždice.
+  Funguje i bez diakritiky a pro začátek slova. Nahoře se ukáže „Zobrazuji výsledky pro …“
+  s možností hledat přesně, v našeptávači „Myslel jsi …?“. Když žádný produkt neobsahuje všechna
+  slova, ukážou se ty s nejvíce shodami. Slovník připravuje denní úloha na GitHubu (tabulka vocab).
+- Detail produktu: kopírování názvu, kódu, EAN, popisu, parametrů, odkazu nebo všeho najednou
+  (tlačítko v horní liště, podržení na názvu či parametru, popis jde označit).
+
 ## 0.7.0
 - **Hodnocení zákazníků**: 0–5 hvězdiček (i poloviční) s průměrem a počtem recenzí u každého produktu
   ve výsledcích hledání, v regálech i v detailu. Bez recenzí jsou hvězdičky prázdné „(0)“.

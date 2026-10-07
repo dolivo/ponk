@@ -163,6 +163,10 @@ struct SearchResponse: Codable {
     let pages: Int
     let items: [Item]
     let facets: Facets?
+    /// Hledání s opraveným překlepem, např. "šroubovák" místo "sroubvak".
+    var corrected: String? = nil
+    /// Žádný produkt neobsahuje všechna slova, ukazují se nejlepší shody.
+    var partial: Bool? = nil
 }
 
 struct HomeSection: Codable, Identifiable {
@@ -218,6 +222,7 @@ struct SuggestResponse: Codable {
     let products: [SuggestProduct]
     let categories: [SuggestCategory]
     let brands: [String]
+    var corrected: String? = nil
 }
 
 struct Position: Codable, Hashable {

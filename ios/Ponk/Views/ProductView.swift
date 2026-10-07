@@ -1,5 +1,6 @@
 import Charts
 import SwiftUI
+import UIKit
 
 struct ProductView: View {
     let sku: String
@@ -32,12 +33,50 @@ struct ProductView: View {
                 .accessibilityLabel("Aktualizovat cenu a sklad teď")
                 .disabled(refreshing)
             }
-            if let p, let url = URL(string: "https://www.bauhaus.cz/\(p.url_path ?? "")") {
+            if let p {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        Button { copy(p.name) } label: { Label("Kopírovat název", systemImage: "textformat") }
+                        Button { copy(p.sku) } label: { Label("Kopírovat kód \(p.sku)", systemImage: "number") }
+                        if let ean = p.ean, !ean.isEmpty {
+                            Button { copy(ean) } label: { Label("Kopírovat EAN", systemImage: "barcode") }
+                        }
+                        if let d = p.description, !d.isEmpty {
+                            Button { copy(plainText(fromHTML: d)) } label: { Label("Kopírovat popis", systemImage: "text.alignleft") }
+                        }
+                        if !p.params.isEmpty {
+                            Button { copy(p.params.map { "\($0.label): \($0.value)" }.joined(separator: "\n")) } label: {
+                                Label("Kopírovat parametry", systemImage: "list.bullet.rectangle")
+                            }
+                        }
+                        Button { copy(summary(p)) } label: { Label("Kopírovat vše", systemImage: "doc.on.doc") }
+                        if let url = productURL(p) {
+                            Button { copy(url.absoluteString) } label: { Label("Kopírovat odkaz", systemImage: "link") }
+                        }
+                    } label: {
+                        Image(systemName: "doc.on.doc")
+                    }
+                    .accessibilityLabel("Kopírovat")
+                }
+            }
+            if let p, let url = productURL(p) {
                 ToolbarItem(placement: .topBarTrailing) { ShareLink(item: url) }
             }
         }
         .task { await load() }
         .sensoryFeedback(.success, trigger: watchTick)
+        .sensoryFeedback(.success, trigger: copyTick)
+        .overlay(alignment: .top) {
+            if let copied {
+                Label(copied, systemImage: "checkmark.circle.fill")
+                    .font(.ponk(15, .semibold, relativeTo: .footnote))
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 8)
+                    .ponkGlassCapsule(tint: Color.ponkGreen.opacity(0.25))
+                    .padding(.top, 6)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         .sheet(isPresented: $showWatch) {
             if let p {
                 WatchSheet(product: p) { watchTick += 1; Task { await load() } }
@@ -62,6 +101,10 @@ struct ProductView: View {
                     .font(.ponk(27, .heavy, relativeTo: .title))
                     .foregroundStyle(Color.ponkInk)
                     .fixedSize(horizontal: false, vertical: true)
+                    .contextMenu {
+                        Button { copy(p.name) } label: { Label("Kopírovat název", systemImage: "doc.on.doc") }
+                        Button { copy(summary(p)) } label: { Label("Kopírovat vše", systemImage: "doc.on.doc.fill") }
+                    }
                 Stars(rating: p.rating, count: p.rating_count, size: 15)
                 Text([p.brand, "kód \(p.sku)", p.ean.map { "EAN \($0)" }, p.dims].compactMap { $0 }.joined(separator: ", "))
                     .font(.ponk(14, relativeTo: .footnote))
@@ -151,6 +194,11 @@ struct ProductView: View {
                             }
                             .font(.ponk(15))
                             .padding(.vertical, 8)
+                            .contentShape(Rectangle())
+                            .contextMenu {
+                                Button { copy(param.value) } label: { Label("Kopírovat hodnotu", systemImage: "doc.on.doc") }
+                                Button { copy("\(param.label): \(param.value)") } label: { Label("Kopírovat řádek", systemImage: "text.alignleft") }
+                            }
                             .overlay(alignment: .top) { Rectangle().fill(Color.ponkLine).frame(height: 1) }
                         }
                     }
@@ -160,6 +208,7 @@ struct ProductView: View {
             if let d = p.description, !d.isEmpty {
                 Block(title: "Popis") {
                     Text(plainText(fromHTML: d)).font(.ponk(16)).lineSpacing(3)
+                        .textSelection(.enabled) // podržením jde označit a zkopírovat libovolná část
                 }
             }
         }
@@ -177,6 +226,32 @@ struct ProductView: View {
             return "\(price < prev ? "Zlevněno" : "Zdraženo") \(shortDay(at)) z \(money(prev)) Kč."
         }
         return "Cena se nezměnila od \(shortDay(p.first_seen)), kdy ji Ponk začal sledovat."
+    }
+
+    @State private var copyTick = 0
+    @State private var copied: String?
+
+    private func productURL(_ p: ProductDetail) -> URL? {
+        URL(string: "https://www.bauhaus.cz/\(p.url_path ?? "")")
+    }
+
+    /// Název, kód, cena a odkaz – hodí se do zprávy nebo poznámek.
+    private func summary(_ p: ProductDetail) -> String {
+        var lines = [p.name, "Kód: \(p.sku)" + (p.ean.map { ", EAN \($0)" } ?? "")]
+        if let price = p.price { lines.append("Cena: \(money(price)) Kč") }
+        if let url = productURL(p) { lines.append(url.absoluteString) }
+        return lines.joined(separator: "\n")
+    }
+
+    private func copy(_ text: String) {
+        UIPasteboard.general.string = text
+        copyTick += 1
+        let tick = copyTick
+        withAnimation(.snappy) { copied = "Zkopírováno" }
+        Task {
+            try? await Task.sleep(for: .seconds(1.4))
+            if tick == copyTick { withAnimation(.snappy) { copied = nil } }
+        }
     }
 
     private func load(refresh: Bool = false) async {

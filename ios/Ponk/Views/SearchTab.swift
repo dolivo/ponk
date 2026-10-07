@@ -28,6 +28,12 @@ struct SearchTab: View {
                 }
             }
         } else if let s = suggest {
+            if let c = s.corrected {
+                Button { submit(c) } label: {
+                    Label { Text("Myslel jsi \(Text(c).fontWeight(.heavy))?") } icon: { Image(systemName: "wand.and.sparkles") }
+                        .foregroundStyle(Color.ponkInk)
+                }
+            }
             ForEach(s.categories) { c in
                 Button { go(ResultsRoute(query: c.query, title: c.name)) } label: {
                     LabeledContent { Text("kategorie") } label: { Label(c.name, systemImage: "square.grid.2x2") }

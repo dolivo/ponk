@@ -40,6 +40,7 @@ struct ResultsView: View {
                         .padding(.horizontal, 14)
                         .padding(.bottom, 6)
                 }
+                if let result { SpellingNotice(result: result, query: $query) }
                 if catalog { QuickFilters(query: $query, filters: quickFilters) }
                 ActiveChips(query: $query, hidden: Set(quickFilters.filter { $0.isOn(query) }.map(\.id)))
                 if !items.isEmpty {
@@ -130,7 +131,7 @@ struct ResultsView: View {
     }
 
     private var filterCount: Int {
-        query.keys.filter { !["q", "sort", "cat1", "page"].contains($0) }.count
+        query.keys.filter { !["q", "sort", "cat1", "page", "exact"].contains($0) }.count
     }
 
     private var quickFilters: [QuickFilter] {
@@ -167,7 +168,7 @@ struct ResultsView: View {
         guard let r = try? await app.api.get("search", query, as: SearchResponse.self) else { return }
         let current = result
         result = SearchResponse(total: r.total, page: current?.page ?? r.page, pages: current?.pages ?? r.pages,
-                                items: [], facets: r.facets)
+                                items: [], facets: r.facets, corrected: r.corrected, partial: r.partial)
         if current == nil { items = r.items }
     }
 
@@ -180,7 +181,38 @@ struct ResultsView: View {
         q["facets"] = "0"
         if let next = try? await app.api.get("search", q, as: SearchResponse.self) {
             items += next.items
-            result = SearchResponse(total: next.total, page: next.page, pages: next.pages, items: [], facets: result?.facets ?? r.facets)
+            result = SearchResponse(total: next.total, page: next.page, pages: next.pages, items: [], facets: result?.facets ?? r.facets,
+                                    corrected: r.corrected, partial: r.partial)
+        }
+    }
+}
+
+/// „Zobrazuji výsledky pro šroubovák“ – když hledání opravilo překlep nebo nenašlo všechna slova.
+struct SpellingNotice: View {
+    let result: SearchResponse
+    @Binding var query: Query
+
+    var body: some View {
+        if result.corrected != nil || result.partial == true {
+            VStack(alignment: .leading, spacing: 4) {
+                if let c = result.corrected {
+                    Text("Zobrazuji výsledky pro \(Text("„\(c)“").fontWeight(.heavy))")
+                        .font(.ponk(16, relativeTo: .subheadline))
+                        .foregroundStyle(Color.ponkInk)
+                    if let original = query["q"] {
+                        Button("Hledat přesně „\(original)“") { query["exact"] = "1" }
+                            .font(.ponk(15, .semibold, relativeTo: .footnote))
+                            .foregroundStyle(Color.ponkRedDeep)
+                    }
+                }
+                if result.partial == true {
+                    Text("Žádný produkt neobsahuje všechna slova, nahoře jsou ty s nejvíce shodami.")
+                        .font(.ponk(14, relativeTo: .footnote))
+                        .foregroundStyle(Color.ponkMuted)
+                }
+            }
+            .padding(.horizontal, 14)
+            .padding(.bottom, 8)
         }
     }
 }
@@ -360,7 +392,7 @@ private struct CatalogSearch: ViewModifier {
     private func apply(_ t: String) {
         let q = t.trimmingCharacters(in: .whitespaces)
         let value: String? = q.isEmpty ? nil : q
-        if query["q"] != value { query["q"] = value }
+        if query["q"] != value { query["q"] = value; query["exact"] = nil }
     }
 }
 
