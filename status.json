@@ -1,0 +1,26 @@
+{
+ "schema": 3,
+ "generated_at": "2026-10-10T10:30:43Z",
+ "last_run": "2026-10-10T12:30:39",
+ "first_day": "2026-10-02",
+ "server_version": "0.8.0",
+ "last_change": "2026-10-10",
+ "raw_size": 47869952,
+ "files": {
+  "ponk-mobile.sqlite.xz": {
+   "size": 7272656,
+   "sha256": "320be53e195601f4c32be6ba1432afcf8ab120f6cb9262bc52e000ca2c0dcabf"
+  },
+  "ponk-mobile.sqlite.deflate": {
+   "size": 12281203,
+   "sha256": "8db1295beee7df4f7a8313f970493700c38e61cb0c237df4864aef0d972f733f"
+  }
+ },
+ "products": 94122,
+ "price_history": 95199,
+ "stock": 386584,
+ "product_attrs": 451493,
+ "restock": 9429,
+ "store_map_labels": 444,
+ "vocab": 23775
+}
