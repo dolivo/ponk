@@ -3,6 +3,13 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.8.1
+- Oprava: po návratu z detailu produktu se seznam načítal znovu od první stránky, takže chvíli
+  zůstala prázdná obrazovka a pak skočil na úplně jiné místo. Výsledky, úvod i kategorie se teď
+  při návratu nepřenačítají a seznam si drží pozici podle produktu nahoře.
+- Stránkování má stabilní pořadí (u shodné ceny, slevy apod. rozhoduje kód produktu), stejný
+  produkt se v seznamu nemůže objevit dvakrát.
+
 ## 0.8.0
 - Vyhledávání podle klíčových slov: hledá se i v parametrech produktů (např. „li-ion 18 v“, „dub“).
 - Oprava překlepů: „sroubvak“ najde šroubováky, „vrtcka makta“ vrtačky Makita, „dlaždyce“ dlaždice.

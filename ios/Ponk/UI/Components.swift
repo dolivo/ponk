@@ -265,6 +265,7 @@ struct Shelf: View {
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
+                .scrollTargetLayout()
             } else {
                 LazyVGrid(columns: columns, spacing: 1) {
                     ForEach(items) { item in
@@ -274,6 +275,7 @@ struct Shelf: View {
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
+                .scrollTargetLayout()
             }
         }
         .padding(.vertical, 1)

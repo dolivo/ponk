@@ -22,6 +22,11 @@ struct ResultsView: View {
     @State private var showScanner = false
     @State private var text = ""
     @AppStorage("listMode") private var listMode = false
+    /// Pro jaký dotaz (a jaká data) jsou výsledky načtené. Při návratu z detailu produktu
+    /// se `.task` spustí znovu – díky tomu se seznam nenačítá od začátku a pozice zůstane.
+    @State private var loadedKey: String?
+    /// Produkt nahoře v zobrazení; drží pozici při přenačtení a návratu z detailu.
+    @State private var anchor: String?
 
     init(route: ResultsRoute, catalog: Bool = false) {
         self.route = route
@@ -31,7 +36,7 @@ struct ResultsView: View {
 
     var body: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            VStack(alignment: .leading, spacing: 0) {
                 OfflineNotice()
                 if let result {
                     Text("\(money(Double(result.total))) \(plural(result.total, "produkt", "produkty", "produktů"))")
@@ -57,6 +62,7 @@ struct ResultsView: View {
                 Color.clear.frame(height: 70) // místo pro plovoucí tlačítka
             }
         }
+        .scrollPosition(id: $anchor, anchor: .top)
         .ponkPage(bottomFade: 84)
         .navigationTitle(route.title)
         .ponkBrandToolbar(catalog)
@@ -94,7 +100,11 @@ struct ResultsView: View {
             ScannerSheet { code in text = code }
         }
         .modifier(CatalogSearch(enabled: catalog, text: $text, query: $query))
-        .task(id: query) { await load() }
+        .task(id: query) {
+            // návrat z detailu produktu: výsledky už jsou, nic znovu nenačítat
+            if loadedKey == currentKey, result != nil { return }
+            await load()
+        }
         .refreshable { await load() }
         // fasety (počty pro filtry) se počítají, až když je opravdu potřeba
         .onChange(of: showFilters) { _, open in
@@ -146,8 +156,13 @@ struct ResultsView: View {
         ]
     }
 
+    private var currentKey: String {
+        query.keys.sorted().map { "\($0)=\(query[$0] ?? "")" }.joined(separator: "&") + "#\(app.meta?.products ?? 0)"
+    }
+
     private func load() async {
         error = nil
+        let key = currentKey
         do {
             var q = query
             // Fasety jsou nejdražší část hledání – bez otevřených filtrů je nepotřebujeme.
@@ -155,7 +170,9 @@ struct ResultsView: View {
             let r = try await app.api.get("search", q, as: SearchResponse.self)
             guard !Task.isCancelled else { return } // mezitím se změnil dotaz
             result = r
+            if key != loadedKey { anchor = nil } // nový dotaz začíná nahoře
             items = r.items
+            loadedKey = key
         } catch is CancellationError {
         } catch {
             if (error as? URLError)?.code == .cancelled { return }
@@ -180,7 +197,9 @@ struct ResultsView: View {
         q["page"] = String(r.page + 1)
         q["facets"] = "0"
         if let next = try? await app.api.get("search", q, as: SearchResponse.self) {
-            items += next.items
+            // stejný produkt dvakrát by v mřížce rozbil rozložení
+            let known = Set(items.map(\.sku))
+            items += next.items.filter { !known.contains($0.sku) }
             result = SearchResponse(total: next.total, page: next.page, pages: next.pages, items: [], facets: result?.facets ?? r.facets,
                                     corrected: r.corrected, partial: r.partial)
         }

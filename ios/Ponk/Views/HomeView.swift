@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(AppModel.self) private var app
     @State private var home: HomeResponse?
+    @State private var loadedFor = -2
     @State private var recent: [Item] = []
     @State private var error: String?
     @AppStorage(Recents.viewedKey) private var viewed = ""
@@ -89,7 +90,12 @@ struct HomeView: View {
         .navigationTitle("Slevy")
         .ponkBrandToolbar()
         .refreshable { await load() }
-        .task(id: app.meta?.products ?? -1) { await load() }
+        .task(id: app.meta?.products ?? -1) {
+            // návrat z detailu: obsah už je načtený pro stejná data
+            if loadedFor == (app.meta?.products ?? -1), home != nil { return }
+            await load()
+            loadedFor = app.meta?.products ?? -1
+        }
         .task(id: viewed) { await loadRecent() }
     }
 

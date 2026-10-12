@@ -305,15 +305,15 @@ actor LocalEngine {
     }
 
     private static let sorts: [String: String] = [
-        "relevance": "p.rank DESC, COALESCE(p.real_discount, 0) DESC, p.name",
-        "price_asc": "p.price ASC",
-        "price_desc": "p.price DESC",
-        "discount": "COALESCE(p.real_discount, 0) DESC, COALESCE(p.drop_pct, 0) DESC",
-        "drop": "(p.price_changed_at IS NOT NULL AND p.drop_pct > 0) DESC, p.price_changed_at DESC, p.drop_pct DESC",
-        "unit": "p.unit_price IS NULL, p.unit_price ASC",
-        "rating": "COALESCE(p.rating, 0) DESC",
-        "newest": "p.created DESC",
-        "newest_seen": "p.first_seen DESC, p.rank DESC",
+        "relevance": "p.rank DESC, COALESCE(p.real_discount, 0) DESC, p.name, p.sku",
+        "price_asc": "p.price ASC, p.sku",
+        "price_desc": "p.price DESC, p.sku",
+        "discount": "COALESCE(p.real_discount, 0) DESC, COALESCE(p.drop_pct, 0) DESC, p.sku",
+        "drop": "(p.price_changed_at IS NOT NULL AND p.drop_pct > 0) DESC, p.price_changed_at DESC, p.drop_pct DESC, p.sku",
+        "unit": "p.unit_price IS NULL, p.unit_price ASC, p.sku",
+        "rating": "COALESCE(p.rating, 0) DESC, p.sku",
+        "newest": "p.created DESC, p.sku",
+        "newest_seen": "p.first_seen DESC, p.rank DESC, p.sku",
     ]
 
     private static let baseItemCols = """

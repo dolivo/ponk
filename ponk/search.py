@@ -7,14 +7,14 @@ from . import db
 from .config import LABELS
 
 SORTS = {
-    "relevance": "p.rank DESC, COALESCE(p.real_discount, 0) DESC, p.name",
-    "price_asc": "p.price ASC",
-    "price_desc": "p.price DESC",
-    "discount": "COALESCE(p.real_discount, 0) DESC, COALESCE(p.drop_pct, 0) DESC",
-    "drop": "(p.price_changed_at IS NOT NULL AND p.drop_pct > 0) DESC, p.price_changed_at DESC, p.drop_pct DESC",
-    "unit": "p.unit_price IS NULL, p.unit_price ASC",
-    "rating": "COALESCE(p.rating, 0) DESC, COALESCE(p.rating_count, 0) DESC",
-    "newest": "p.created_at DESC",
+    "relevance": "p.rank DESC, COALESCE(p.real_discount, 0) DESC, p.name, p.sku",
+    "price_asc": "p.price ASC, p.sku",
+    "price_desc": "p.price DESC, p.sku",
+    "discount": "COALESCE(p.real_discount, 0) DESC, COALESCE(p.drop_pct, 0) DESC, p.sku",
+    "drop": "(p.price_changed_at IS NOT NULL AND p.drop_pct > 0) DESC, p.price_changed_at DESC, p.drop_pct DESC, p.sku",
+    "unit": "p.unit_price IS NULL, p.unit_price ASC, p.sku",
+    "rating": "COALESCE(p.rating, 0) DESC, COALESCE(p.rating_count, 0) DESC, p.sku",
+    "newest": "p.created_at DESC, p.sku",
 }
 PAGE = 30
 

@@ -83,6 +83,7 @@ struct CategoryBrowser: View {
     let cat2: String?
     @Environment(AppModel.self) private var app
     @State private var data: CategoriesResponse?
+    @State private var loadedFor = -2
     @State private var error: String?
 
     private let columns = [GridItem(.flexible(), spacing: 1), GridItem(.flexible(), spacing: 1)]
@@ -117,7 +118,12 @@ struct CategoryBrowser: View {
         .ponkPage()
         .navigationTitle(cat2 ?? cat1 ?? "Kategorie")
         .ponkBrandToolbar(cat1 == nil) // logo jen na první úrovni záložky Hledat
-        .task(id: app.meta?.products ?? -1) { await load() }
+        .task(id: app.meta?.products ?? -1) {
+            // návrat z detailu: obsah už je načtený pro stejná data
+            if loadedFor == (app.meta?.products ?? -1), data != nil { return }
+            await load()
+            loadedFor = app.meta?.products ?? -1
+        }
     }
 
     private var query: Query {
