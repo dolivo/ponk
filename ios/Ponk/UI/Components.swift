@@ -420,15 +420,27 @@ private struct ProductMenu: ViewModifier {
     let item: Item
     @Environment(AppModel.self) private var app
     @State private var watched = 0
+    @AppStorage("currentList") private var currentList = 0
 
     func body(content: Content) -> some View {
         content
             .contextMenu {
+                Button { Task { await addToList() } } label: { Label("Přidat do seznamu", systemImage: "cart.badge.plus") }
                 Button { Task { await watch() } } label: { Label("Hlídat cenu", systemImage: "eye") }
                 Button { UIPasteboard.general.string = item.name } label: { Label("Kopírovat název", systemImage: "doc.on.doc") }
                 Button { UIPasteboard.general.string = item.sku } label: { Label("Kopírovat kód \(item.sku)", systemImage: "number") }
             }
             .sensoryFeedback(.success, trigger: watched)
+    }
+
+    /// Rychlé přidání 1 ks do naposledy použitého seznamu.
+    private func addToList() async {
+        var id = currentList
+        let lists = (try? await app.api.get("lists", as: ListResponse<ShoppingListInfo>.self).items) ?? []
+        if !lists.contains(where: { $0.id == id }) { id = lists.first?.id ?? 1 }
+        try? await app.api.send("POST", "list/\(id)", body: ["sku": item.sku, "qty": 1])
+        currentList = id
+        watched += 1
     }
 
     private func watch() async {

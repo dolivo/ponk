@@ -337,3 +337,53 @@ struct StoreMap: Codable {
     let height: Double
     let labels: [StoreMapLabel]
 }
+
+// --- nákupní seznamy ------------------------------------------------------
+
+struct ShoppingListInfo: Codable, Identifiable, Hashable {
+    let id: Int
+    let name: String
+    let store: String?
+    let count: Int
+    let open: Int
+}
+
+struct ListEntry: Codable, Identifiable, Hashable {
+    let id: Int
+    let sku: String?
+    let text: String?
+    var qty: Double
+    var checked: Int
+    let note: String?
+    let added: String?
+    let added_price: Double?
+    let product: Item?
+
+    var isChecked: Bool { checked != 0 }
+    var title: String { product?.name ?? text ?? sku ?? "" }
+    var lineTotal: Double? { product?.price.map { $0 * qty } }
+}
+
+struct StoreHave: Codable, Hashable {
+    let code: String
+    let name: String
+    let have: Int
+}
+
+struct ShoppingListDetail: Codable {
+    let id: Int
+    let name: String
+    let store: String
+    var items: [ListEntry]
+    let stores: [StoreHave]
+    let pending: Int
+    let total: Double
+    let open_total: Double
+}
+
+struct InList: Codable, Hashable {
+    let list_id: Int
+    let name: String
+    let qty: Double
+    let checked: Int
+}

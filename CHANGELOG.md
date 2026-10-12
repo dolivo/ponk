@@ -3,6 +3,17 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.10.0
+- Nákupní seznamy (záložka Seznam, vedle nich Hlídané):
+  - víc pojmenovaných seznamů (např. „Dřevník“), přejmenování, mazání,
+  - přidání z detailu produktu (s množstvím a volbou seznamu) nebo podržením dlaždice, i vlastní text,
+  - řazení po cestě prodejnou podle čísla regálu a pole (živě z Bauhausu), regál u každé položky,
+  - sklad na zvolené prodejně, „skladem X z Y“ a tip na prodejnu, která má skladem víc,
+  - součet ceny, změna ceny od přidání, odškrtávání do košíku (klepnutím nebo přejetím),
+  - mapa trasy: plánek prodejny s očíslovanými zastávkami,
+  - sdílení seznamu jako text, poznámky k položkám.
+- Detail produktu: tlačítko „Do seznamu“ a informace, ve kterém seznamu produkt už je.
+
 ## 0.9.0
 - Detail produktu: kategorie nad názvem jdou rozkliknout. Hlavní kategorie a podkategorie otevřou
   přehled podkategorií, poslední úroveň rovnou produkty v kategorii.

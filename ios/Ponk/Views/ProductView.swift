@@ -66,6 +66,21 @@ struct ProductView: View {
         .task { await load() }
         .sensoryFeedback(.success, trigger: watchTick)
         .sensoryFeedback(.success, trigger: copyTick)
+        .sheet(isPresented: $showAddToList) {
+            if let p {
+                AddToListSheet(sku: p.sku, name: p.name) {
+                    copyTick += 1
+                    withAnimation(.snappy) { copied = "Přidáno do seznamu" }
+                    Task {
+                        await loadInLists()
+                        try? await Task.sleep(for: .seconds(1.4))
+                        withAnimation(.snappy) { copied = nil }
+                    }
+                }
+                .presentationDetents([.medium, .large])
+            }
+        }
+        .task { await loadInLists() }
         .overlay(alignment: .top) {
             if let copied {
                 Label(copied, systemImage: "checkmark.circle.fill")
@@ -134,6 +149,12 @@ struct ProductView: View {
 
             GlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
+                    Button {
+                        showAddToList = true
+                    } label: {
+                        Label("Do seznamu", systemImage: "cart.badge.plus").font(.ponk(16, .heavy))
+                    }
+                    .ponkProminentButton()
                     if p.watch != nil {
                         Button {
                             Task { await unwatch(p) }
@@ -145,20 +166,28 @@ struct ProductView: View {
                         Button {
                             showWatch = true
                         } label: {
-                            Label("Hlídat cenu", systemImage: "eye").font(.ponk(16, .heavy))
+                            Label("Hlídat cenu", systemImage: "eye").font(.ponk(16, .semibold))
                         }
-                        .ponkProminentButton()
+                        .ponkGlassButton()
                     }
                     if let url = URL(string: "https://www.bauhaus.cz/\(p.url_path ?? "")") {
                         Link(destination: url) {
-                            Label("Na bauhaus.cz", systemImage: "arrow.up.right.square").font(.ponk(16, .semibold))
+                            Image(systemName: "arrow.up.right.square").font(.ponk(16, .semibold))
                         }
                         .ponkGlassButton()
+                        .accessibilityLabel("Otevřít na bauhaus.cz")
                     }
                 }
                 .controlSize(.large)
             }
             .padding(.horizontal, 14)
+
+            if !inLists.isEmpty {
+                Label(inLists.map { "\($0.name): \(qtyText($0.qty)) ks" + ($0.checked != 0 ? " (v košíku)" : "") }.joined(separator: ", "),
+                      systemImage: "checklist")
+                    .font(.ponk(14)).foregroundStyle(Color.ponkMuted)
+                    .padding(.horizontal, 14)
+            }
 
             if let w = p.watch {
                 Text(watchText(w))
@@ -226,6 +255,8 @@ struct ProductView: View {
         return "Cena se nezměnila od \(shortDay(p.first_seen)), kdy ji Ponk začal sledovat."
     }
 
+    @State private var showAddToList = false
+    @State private var inLists: [InList] = []
     @State private var copyTick = 0
     @State private var copied: String?
 
@@ -250,6 +281,10 @@ struct ProductView: View {
             try? await Task.sleep(for: .seconds(1.4))
             if tick == copyTick { withAnimation(.snappy) { copied = nil } }
         }
+    }
+
+    private func loadInLists() async {
+        inLists = (try? await app.api.get("inlists", ["sku": sku], as: ListResponse<InList>.self).items) ?? []
     }
 
     private func load(refresh: Bool = false) async {

@@ -56,8 +56,9 @@ struct RootView: View {
             Tab("Slevy", systemImage: "tag", value: AppTab.home) {
                 NavigationStack { HomeView().ponkDestinations() }
             }
-            Tab("Hlídané", systemImage: "eye", value: AppTab.watch) {
-                NavigationStack { WatchView().ponkDestinations() }
+            // Nákupní seznamy a hlídané produkty
+            Tab("Seznam", systemImage: "checklist", value: AppTab.watch) {
+                NavigationStack { MyStuffView().ponkDestinations() }
             }
             .badge(app.meta?.watched_drops ?? 0)
             Tab("Více", systemImage: "line.3.horizontal", value: AppTab.more) {

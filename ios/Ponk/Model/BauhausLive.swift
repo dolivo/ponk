@@ -85,4 +85,46 @@ enum BauhausLive {
         }
         return p
     }
+
+    struct Shelf: Hashable {
+        let shelf: String
+        let field: String
+        let zone: String
+        /// Číslo regálu pro řazení trasy prodejnou (např. "426" → 426).
+        var number: Int { Int(shelf.prefix { $0.isNumber }) ?? Int.max }
+    }
+
+    /// Regály a aktuální sklad více produktů naráz (pro nákupní seznam).
+    /// Vrací regál v dané prodejně a sklad po prodejnách; offline vrátí prázdné výsledky.
+    static func shelves(skus: [String], store: String) async -> (shelves: [String: Shelf], stock: [String: [String: Double]]) {
+        guard !skus.isEmpty else { return ([:], [:]) }
+        var shelves: [String: Shelf] = [:]
+        var stock: [String: [String: Double]] = [:]
+        for chunk in stride(from: 0, to: skus.count, by: 50).map({ Array(skus[$0..<min($0 + 50, skus.count)]) }) {
+            async let docs = post(catalog, [
+                "size": chunk.count,
+                "query": ["terms": ["sku": chunk]],
+                "_source": ["includes": ["sku", "position_in_store_array"]],
+            ])
+            async let st = post(stocks, ["skus": chunk])
+            if let res = try? await docs, let hits = (res["hits"] as? [String: Any])?["hits"] as? [[String: Any]] {
+                for h in hits {
+                    guard let src = h["_source"] as? [String: Any], let sku = src["sku"] as? String,
+                          let rows = (src["position_in_store_array"] as? [String: Any])?[store] as? [[String: Any]],
+                          let r = rows.first, let shelf = r["shelf"] as? String, !shelf.isEmpty else { continue }
+                    var zone = (r["description"] as? String ?? "").trimmingCharacters(in: .whitespaces)
+                    if zone.range(of: "^R\\d+\\s+F\\d+", options: .regularExpression) != nil { zone = "" }
+                    shelves[sku] = Shelf(shelf: shelf, field: r["field"] as? String ?? "", zone: zone)
+                }
+            }
+            if let res = try? await st, let rows = res["result"] as? [[String: Any]] {
+                for r in rows where "\(r["status"] ?? "1")" == "1" {
+                    if let sku = r["product_sku"] as? String, let code = r["code"] as? String, let q = num(r["qty"]) {
+                        stock[sku, default: [:]][code] = q
+                    }
+                }
+            }
+        }
+        return (shelves, stock)
+    }
 }

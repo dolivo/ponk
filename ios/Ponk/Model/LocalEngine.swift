@@ -39,6 +39,11 @@ actor LocalEngine {
             CREATE TABLE IF NOT EXISTS saved(id INTEGER PRIMARY KEY, name TEXT, query TEXT, created TEXT, checked TEXT);
             CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
             INSERT OR IGNORE INTO settings VALUES('store', '888');
+            CREATE TABLE IF NOT EXISTS lists(id INTEGER PRIMARY KEY, name TEXT, created TEXT, store TEXT);
+            CREATE TABLE IF NOT EXISTS list_items(id INTEGER PRIMARY KEY, list_id INTEGER, sku TEXT, text TEXT,
+                qty REAL DEFAULT 1, checked INTEGER DEFAULT 0, note TEXT, added TEXT, added_price REAL);
+            CREATE INDEX IF NOT EXISTS list_items_list ON list_items(list_id);
+            INSERT INTO lists(name, created) SELECT 'Nákupní seznam', date('now') WHERE NOT EXISTS (SELECT 1 FROM lists);
             """)
         try? user.exec("ALTER TABLE watch ADD COLUMN notified_restock TEXT")
         user.close()
@@ -135,6 +140,8 @@ actor LocalEngine {
         case ("DELETE", "watch"):
             try user.run("DELETE FROM \(t("watch")) WHERE sku = ?", [parts.count > 1 ? parts[1] : ""])
             return ["ok": true]
+        case (_, "lists"), (_, "list"), (_, "listitem"), ("GET", "inlists"):
+            return try shoppingList(method: method, parts: parts, query: query, body: body)
         case ("GET", "saved"): return ["items": try savedItems()]
         case ("POST", "saved"):
             let q = body?["query"] as? [String: Any] ?? [:]
@@ -702,6 +709,143 @@ actor LocalEngine {
             out.append(["id": r["id"] ?? 0, "name": r["name"] ?? "", "query": query, "fresh": fresh, "total": total])
         }
         return out
+    }
+
+    // MARK: - nákupní seznamy
+
+    private func num(_ v: Any?) -> Double? {
+        if let d = v as? Double { return d }
+        if let i = v as? Int { return Double(i) }
+        if let s = v as? String { return Double(s) }
+        return nil
+    }
+
+    private func shoppingList(method: String, parts: [String], query: [String: String], body: [String: Any]?) throws -> Any {
+        let user = try userDB()
+        let L = t("lists"), I = t("list_items")
+        let id = parts.count > 1 ? Int(parts[1]) : nil
+        switch (method, parts[0]) {
+        case ("GET", "lists"):
+            let rows = try user.query("""
+                SELECT l.id, l.name, l.store, COUNT(i.id) AS count, COALESCE(SUM(i.checked = 0), 0) AS open
+                FROM \(L) l LEFT JOIN \(I) i ON i.list_id = l.id GROUP BY l.id ORDER BY l.id
+                """)
+            return ["items": rows]
+        case ("POST", "lists"):
+            let name = (body?["name"] as? String)?.trimmingCharacters(in: .whitespaces) ?? ""
+            if let id {
+                if !name.isEmpty { try user.run("UPDATE \(L) SET name = ? WHERE id = ?", [name, id]) }
+                if let store = body?["store"] as? String { try user.run("UPDATE \(L) SET store = ? WHERE id = ?", [store.isEmpty ? nil : store, id]) }
+                return ["ok": true, "id": id]
+            }
+            try user.run("INSERT INTO \(L)(name, created) VALUES(?, ?)", [name.isEmpty ? "Nový seznam" : name, Self.today()])
+            return ["ok": true, "id": try user.scalar("SELECT MAX(id) FROM \(L)") ?? 0]
+        case ("DELETE", "lists"):
+            guard let id else { throw EngineError.notFound }
+            try user.run("DELETE FROM \(I) WHERE list_id = ?", [id])
+            try user.run("DELETE FROM \(L) WHERE id = ?", [id])
+            try user.run("INSERT INTO \(L)(name, created) SELECT 'Nákupní seznam', ? WHERE NOT EXISTS (SELECT 1 FROM \(L))", [Self.today()])
+            return ["ok": true]
+        case ("GET", "inlists"):
+            let rows = try user.query("""
+                SELECT l.id AS list_id, l.name, i.qty, i.checked FROM \(I) i JOIN \(L) l ON l.id = i.list_id WHERE i.sku = ?
+                """, [query["sku"] ?? ""])
+            return ["items": rows]
+        case ("GET", "list"):
+            guard let id, let list = try user.query("SELECT id, name, store FROM \(L) WHERE id = ?", [id]).first else {
+                throw EngineError.notFound
+            }
+            return try listDetail(list)
+        case ("POST", "list"):
+            // přidat položku: produkt (sku) nebo vlastní text; stejný produkt jen navýší množství
+            guard let id else { throw EngineError.notFound }
+            let qty = num(body?["qty"]) ?? 1
+            if let sku = body?["sku"] as? String, !sku.isEmpty {
+                if let existing = try user.scalar("SELECT id FROM \(I) WHERE list_id = ? AND sku = ? AND checked = 0", [id, sku]) as? Int {
+                    try user.run("UPDATE \(I) SET qty = qty + ? WHERE id = ?", [qty, existing])
+                } else {
+                    let price = db != nil ? try db!.scalar("SELECT price FROM products WHERE sku = ?", [sku]) : nil
+                    try user.run("INSERT INTO \(I)(list_id, sku, qty, added, added_price) VALUES(?, ?, ?, ?, ?)",
+                                 [id, sku, qty, Self.today(), price])
+                }
+            } else if let text = (body?["text"] as? String)?.trimmingCharacters(in: .whitespaces), !text.isEmpty {
+                try user.run("INSERT INTO \(I)(list_id, text, qty, added) VALUES(?, ?, ?, ?)", [id, text, qty, Self.today()])
+            }
+            if let mode = body?["clear"] as? String {
+                switch mode {
+                case "checked": try user.run("DELETE FROM \(I) WHERE list_id = ? AND checked = 1", [id])
+                case "uncheck": try user.run("UPDATE \(I) SET checked = 0 WHERE list_id = ?", [id])
+                case "all": try user.run("DELETE FROM \(I) WHERE list_id = ?", [id])
+                default: break
+                }
+            }
+            return ["ok": true]
+        case ("POST", "listitem"):
+            guard let id else { throw EngineError.notFound }
+            if let q = num(body?["qty"]) {
+                if q <= 0 { try user.run("DELETE FROM \(I) WHERE id = ?", [id]) } else { try user.run("UPDATE \(I) SET qty = ? WHERE id = ?", [q, id]) }
+            }
+            if let c = body?["checked"] as? Bool { try user.run("UPDATE \(I) SET checked = ? WHERE id = ?", [c ? 1 : 0, id]) }
+            if let n = body?["note"] as? String { try user.run("UPDATE \(I) SET note = ? WHERE id = ?", [n.isEmpty ? nil : n, id]) }
+            if let txt = body?["text"] as? String, !txt.isEmpty { try user.run("UPDATE \(I) SET text = ? WHERE id = ?", [txt, id]) }
+            return ["ok": true]
+        case ("DELETE", "listitem"):
+            guard let id else { throw EngineError.notFound }
+            try user.run("DELETE FROM \(I) WHERE id = ?", [id])
+            return ["ok": true]
+        default:
+            throw EngineError.notFound
+        }
+    }
+
+    /// Položky seznamu s cenou a skladem + kolik položek mají jednotlivé prodejny skladem.
+    private func listDetail(_ list: [String: Any]) throws -> [String: Any] {
+        let user = try userDB()
+        let listID = list["id"] as? Int ?? 0
+        let store = (list["store"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? setting("store") ?? "888"
+        var rows = try user.query("SELECT id, sku, text, qty, checked, note, added, added_price FROM \(t("list_items")) WHERE list_id = ? ORDER BY id",
+                                  [listID])
+        let skus = rows.compactMap { $0["sku"] as? String }
+        var product: [String: [String: Any]] = [:]
+        var stock: [String: [String: Double]] = [:]   // sku → prodejna → ks
+        if let db, !skus.isEmpty {
+            let marks = Array(repeating: "?", count: skus.count).joined(separator: ",")
+            for r in try db.query("SELECT \(itemCols) FROM products p WHERE p.sku IN (\(marks))", skus) {
+                if let s = r["sku"] as? String { product[s] = r }
+            }
+            for r in try db.query("SELECT sku, store, qty FROM stock WHERE sku IN (\(marks))", skus) {
+                if let s = r["sku"] as? String, let st = r["store"] as? String { stock[s, default: [:]][st] = num(r["qty"]) ?? 0 }
+            }
+        }
+        var total = 0.0, open = 0.0
+        for i in rows.indices {
+            let qty = num(rows[i]["qty"]) ?? 1
+            guard let sku = rows[i]["sku"] as? String else { continue }
+            if var p = product[sku] {
+                p["labels"] = ((p["labels"] as? String) ?? "").split(separator: ",").map(String.init).filter { !$0.isEmpty }
+                p["store_qty"] = stock[sku]?[store] ?? 0
+                rows[i]["product"] = p
+                if let price = num(p["price"]) {
+                    total += price * qty
+                    if (rows[i]["checked"] as? Int ?? 0) == 0 { open += price * qty }
+                }
+            }
+        }
+        // dostupnost po prodejnách pro položky, které ještě nejsou v košíku
+        let pending = rows.filter { ($0["checked"] as? Int ?? 0) == 0 && $0["sku"] is String }
+        var stores: [[String: Any]] = []
+        if let db {
+            for s in try db.query("SELECT code, name FROM stores ORDER BY name") {
+                guard let code = s["code"] as? String else { continue }
+                let have = pending.filter { r in
+                    guard let sku = r["sku"] as? String else { return false }
+                    return (stock[sku]?[code] ?? 0) >= (num(r["qty"]) ?? 1)
+                }.count
+                stores.append(["code": code, "name": s["name"] ?? code, "have": have])
+            }
+        }
+        return ["id": listID, "name": list["name"] ?? "", "store": store, "items": rows,
+                "stores": stores, "pending": pending.count, "total": total, "open_total": open]
     }
 
     /// Hlídané produkty, které jsou znovu skladem na mé prodejně nebo v e-shopu (od posledního upozornění).
