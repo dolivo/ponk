@@ -3,6 +3,7 @@ import SwiftUI
 struct MoreView: View {
     @Environment(AppModel.self) private var app
     @AppStorage("theme") private var theme = "system"
+    @AppStorage("menuSide") private var menuSide = MenuSide.right.rawValue
     @AppStorage("font") private var font = PonkFont.barlow.rawValue
     @AppStorage("auto_wifi") private var autoWiFi = true
     @AppStorage("repo") private var repo = ""
@@ -40,6 +41,20 @@ struct MoreView: View {
                 Text("Zdroj dat na GitHubu")
             } footer: {
                 Text("Repozitář, ve kterém běží denní kontrola cen (uživatel/repozitář). Nech prázdné pro výchozí \(DataStore.defaultRepo).")
+            }
+
+            Section {
+                Picker("Menu", selection: $menuSide) {
+                    Text("Vpravo").tag(MenuSide.right.rawValue)
+                    Text("Vlevo").tag(MenuSide.left.rawValue)
+                    Text("Dole").tag(MenuSide.bottom.rawValue)
+                }
+                .pickerStyle(.segmented)
+                .listRowBackground(Color.clear)
+            } header: {
+                Text("Umístění menu")
+            } footer: {
+                Text("Svislé menu u okraje obrazovky se dá ovládat palcem jedné ruky. Opětovné klepnutí na otevřenou záložku ji vrátí na začátek.")
             }
 
             Section("Vzhled") {

@@ -3,6 +3,13 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.11.0
+- **Menu pro jednu ruku**: hlavní menu je svisle u pravého okraje obrazovky ve spodní části,
+  kam dosáhne palec (skleněný panel, na iOS 26 Liquid Glass). Ve Více → Umístění menu jde přepnout
+  na levou stranu nebo zpět na klasickou spodní lištu.
+- V bočním menu si záložky drží stav (rozscrollovaný seznam, otevřený detail); opětovné klepnutí
+  na otevřenou záložku ji vrátí na začátek. Odznak zlevněných hlídaných zůstává u Seznamu.
+
 ## 0.10.0
 - Nákupní seznamy (záložka Seznam, vedle nich Hlídané):
   - víc pojmenovaných seznamů (např. „Dřevník“), přejmenování, mazání,

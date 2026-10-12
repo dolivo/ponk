@@ -478,6 +478,17 @@ extension View {
         }
     }
 
+    /// Skleněný panel (iOS 26 Liquid Glass, starší iOS materiál se stínem).
+    @ViewBuilder
+    func ponkGlassPanel(cornerRadius: CGFloat) -> some View {
+        if #available(iOS 26.0, *) {
+            self.glassEffect(.regular.interactive(), in: RoundedRectangle(cornerRadius: cornerRadius))
+        } else {
+            self.background(.regularMaterial, in: RoundedRectangle(cornerRadius: cornerRadius))
+                .shadow(color: .black.opacity(0.15), radius: 12, y: 4)
+        }
+    }
+
     @ViewBuilder
     func ponkMinimizingTabBar() -> some View {
         if #available(iOS 26.0, *) { self.tabBarMinimizeBehavior(.onScrollDown) } else { self }
