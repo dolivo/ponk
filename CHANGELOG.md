@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.9.0
+- Detail produktu: kategorie nad názvem jdou rozkliknout. Hlavní kategorie a podkategorie otevřou
+  přehled podkategorií, poslední úroveň rovnou produkty v kategorii.
+
 ## 0.8.1
 - Oprava: po návratu z detailu produktu se seznam načítal znovu od první stránky, takže chvíli
   zůstala prázdná obrazovka a pak skočil na úplně jiné místo. Výsledky, úvod i kategorie se teď
