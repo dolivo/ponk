@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 
 @main
 struct PonkApp: App {
@@ -55,6 +56,8 @@ struct RootView: View {
     @State private var resets: [AppTab: Int] = [:]
     /// Druhé klepnutí na Hledat otevře pole hledání s klávesnicí.
     @State private var searchFocus = 0
+    /// Je vysunutá klávesnice? Boční menu se pak přesune nahoru, aby nebylo schované pod ní.
+    @State private var keyboardUp = false
 
     private var side: MenuSide { MenuSide(rawValue: menuSide) ?? .right }
 
@@ -151,13 +154,26 @@ struct RootView: View {
                 reselect(t)
             }
             .padding(side == .left ? .leading : .trailing, 8)
-            // nad plovoucími tlačítky Filtry / Řazení, v dosahu palce
-            .padding(.bottom, 92)
+            // dole nad plovoucími tlačítky Filtry / Řazení v dosahu palce;
+            // s klávesnicí nahoře pod horní lištou, aby šlo dál klepat
+            .padding(.bottom, keyboardUp ? 0 : 92)
+            .padding(.top, keyboardUp ? 50 : 0) // pod lištou s tlačítky (ty zůstanou klikatelné)
             .frame(maxWidth: .infinity, maxHeight: .infinity,
-                   alignment: side == .left ? .bottomLeading : .bottomTrailing)
+                   alignment: keyboardUp ? (side == .left ? .topLeading : .topTrailing)
+                                         : (side == .left ? .bottomLeading : .bottomTrailing))
             // přepnutí strany ve Více: menu plynule přejede na druhý okraj
             .animation(.spring(response: 0.45, dampingFraction: 0.8), value: side)
+            // s klávesnicí pružně vyjede nahoru a po jejím schování se vrátí
+            .animation(.spring(response: 0.5, dampingFraction: 0.8), value: keyboardUp)
             .ignoresSafeArea(.keyboard)
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { n in
+            // jen opravdová klávesnice, ne lišta zkratek u hardwarové klávesnice
+            let frame = n.userInfo?[UIResponder.keyboardFrameEndUserInfoKey] as? CGRect
+            if (frame?.height ?? 300) > 120 { keyboardUp = true }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
+            keyboardUp = false
         }
         .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
     }

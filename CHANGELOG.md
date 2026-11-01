@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.13.1
+- Když vyjede klávesnice, boční menu pružně přejede nahoru (pod horní lištu), aby nebylo schované
+  pod klávesnicí a šlo na něj klepat. Po schování klávesnice se vrátí zpět dolů.
+
 ## 0.13.0
 - Boční menu má animace jako systémová lišta iOS: zvýraznění vybrané záložky pružně přejede
   na novou, ikona se při klepnutí zhoupne a vyplní, tlačítko se při stisku zmáčkne, odznak
