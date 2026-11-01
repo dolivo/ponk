@@ -7,8 +7,7 @@ import urllib.request
 from .config import BASE, CATALOG, REVIEWS, STOCKS, USER_AGENT
 
 # Pole, která nepotřebujeme a jen zvětšují přenos (~40 % dat).
-EXCLUDE = ["description", "product_links", "classification_store_sort",
-           "producersjson", "configurable_children", "tier_prices"]
+EXCLUDE = ["description", "classification_store_sort", "configurable_children"]
 
 
 class Client:

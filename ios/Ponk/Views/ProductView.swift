@@ -147,6 +147,14 @@ struct ProductView: View {
             }
             .padding(.horizontal, 14)
 
+            // akce výrobce (dárek k nákupu, cashback, soutěž…) hned pod cenou
+            if let promos = p.promos, !promos.isEmpty {
+                PromoCards(promos: promos).padding(.horizontal, 14)
+            }
+            if let tiers = p.tiers, !tiers.isEmpty {
+                TierPrices(tiers: tiers, price: p.price).padding(.horizontal, 14)
+            }
+
             GlassGroup(spacing: 10) {
                 HStack(spacing: 10) {
                     Button {
@@ -207,6 +215,12 @@ struct ProductView: View {
                 .padding(.horizontal, 14)
             }
 
+            ProductBadges(p: p).padding(.horizontal, 14)
+
+            if let box = p.box, !box.isEmpty {
+                Block(title: "Obsah balení") { BoxContents(text: box) }
+            }
+
             Block(title: "Kde je skladem") { StockList(p: p) }
             Block(title: "Vývoj ceny") { PriceChart(history: p.history, current: p.price) }
             Block(title: "Hodnocení zákazníků") { ReviewsSection(sku: p.sku) }
@@ -237,6 +251,25 @@ struct ProductView: View {
                     Text(plainText(fromHTML: d)).font(.ponk(16)).lineSpacing(3)
                         .textSelection(.enabled) // podržením jde označit a zkopírovat libovolná část
                 }
+            }
+
+            if let docs = p.documents, !docs.isEmpty {
+                Block(title: "Dokumenty a návody") { DocumentList(docs: docs) }
+            }
+
+            ForEach([("Související a příslušenství", p.related), ("Podobné produkty", p.alternatives),
+                     ("Ze stejné série", p.series)], id: \.0) { title, items in
+                if let items, !items.isEmpty {
+                    VStack(alignment: .leading, spacing: 10) {
+                        Text(title).font(.ponk(20, .heavy, relativeTo: .title3)).foregroundStyle(Color.ponkInk)
+                            .padding(.horizontal, 14)
+                        Rail(items: items)
+                    }
+                }
+            }
+
+            if p.producer != nil || !(p.safety ?? [:]).isEmpty {
+                Block(title: "Výrobce a bezpečnost") { ProducerSafety(producer: p.producer, safety: p.safety) }
             }
         }
         .padding(.bottom, 30)

@@ -6,6 +6,7 @@ from datetime import date, datetime
 
 from . import db
 from .bauhaus import Client
+from . import promos
 from .config import DATA_DIR, LABELS, UNITS
 
 OPTIONS_CACHE = DATA_DIR / "attribute_options.json"
@@ -39,7 +40,80 @@ def _label(maps, code, value):
     return str(value).strip() if isinstance(value, str) else None
 
 
-def normalize(src, maps):
+DOC_TYPES = {
+    "Instructions": "Návod k použití", "Assembly instructions": "Návod k montáži",
+    "Technical data sheet": "Technický list", "Safety data sheet": "Bezpečnostní list",
+    "Product information sheet": "Informační list produktu", "Energy label": "Energetický štítek",
+    "Legal document": "Prohlášení o shodě", "Safety information": "Bezpečnostní informace",
+    "Test result": "Výsledek testu", "Document": "Dokument",
+}
+SAFETY = ["ghssignalword", "ghspictogram", "hazardstatements", "euhazardstatements", "precautionarystatements"]
+
+
+def _values(v):
+    if v in (None, "", 0, "0"):
+        return []
+    if isinstance(v, list):
+        return v
+    if isinstance(v, str) and "," in v:
+        return [x.strip() for x in v.split(",") if x.strip()]
+    return [v]
+
+
+def extras_for(src, maps, extra):
+    """Doplňkové informace z detailu produktu (akce, obsah balení, dokumenty, výrobce…)."""
+    e = {}
+    banners = [int(b) for b in _values(src.get("banners")) if str(b).isdigit() and int(b) in extra.get("banners", {})]
+    if banners:
+        e["banners"] = banners
+    if (src.get("dodani") or "").strip():
+        e["box"] = src["dodani"].strip()
+    for key, code in (("warranty", "zaruka"), ("energy", "energeticky_stitek")):
+        lab = _label(maps, code, src.get(code))
+        if lab:
+            e[key] = lab
+    for key, code in (("exclusive", "exklizivnebauhaus"), ("assembly", "montazni_servis"), ("rental", "pujcovna")):
+        if src.get(code) in (1, "1", True):
+            e[key] = 1
+    docs = []
+    for d in _values(src.get("documents")):
+        o = extra.get("documents", {}).get(int(d)) if str(d).isdigit() else None
+        if o and o.get("path"):
+            docs.append({"name": DOC_TYPES.get(o.get("frontend_name"), o.get("frontend_name") or "Dokument"),
+                         "url": "https://media.bauhaus.cz/" + o["path"].lstrip("/")})
+    if docs:
+        e["documents"] = docs
+    try:
+        prod = json.loads(src.get("producersjson") or "[]")
+        if prod and prod[0].get("name"):
+            e["producer"] = {k: prod[0].get(k) for k in ("name", "address", "email") if prod[0].get(k)}
+    except (ValueError, TypeError, AttributeError):
+        pass
+    safety = {}
+    for code in SAFETY:
+        labs = [l for l in (_label(maps, code, v) for v in _values(src.get(code))) if l]
+        if labs:
+            safety[code] = labs
+    if safety:
+        e["safety"] = safety
+    tiers = sorted({(int(t["qty"]), float(t["value"])) for t in src.get("tier_prices") or []
+                    if t.get("qty") and t.get("value")})
+    if tiers:
+        e["tiers"] = [{"qty": q, "price": v} for q, v in tiers]
+    links = {}
+    for l in src.get("product_links") or []:
+        t, sku = l.get("link_type"), l.get("linked_product_sku")
+        if t and sku and len(links.setdefault(t, [])) < 16:
+            links[t].append(str(sku))
+    if links:
+        e["links"] = links
+    series = [str(x) for x in _values(src.get("serie_skus")) if str(x) != str(src.get("sku"))][:16]
+    if series:
+        e["series"] = series
+    return e
+
+
+def normalize(src, maps, extra=None):
     """Převede dokument z Elasticsearch na řádek tabulky products + parametry."""
     sku = str(src.get("sku"))
     tree = src.get("category_tree") or []
@@ -64,6 +138,13 @@ def normalize(src, maps):
     usps = [src.get(f"usp{i}") for i in range(1, 6) if src.get(f"usp{i}")]
     brand = _label(maps, "manufacturer", src.get("manufacturer"))
     labels = [l for l in src.get("labels") or [] if l in LABELS]
+    ex = extras_for(src, maps, extra) if extra else None  # bez map (živá aktualizace) se doplňky nemění
+    extra = extra or {}
+    for bid in (ex or {}).get("banners", []):
+        b = extra["banners"][bid]
+        lab = promos.LABEL_FOR_KIND.get(b["kind"])
+        if lab and promos.is_active(b) and lab not in labels:
+            labels.append(lab)
     p = {
         "sku": sku, "pid": src.get("id"), "name": (src.get("name") or "").strip(),
         "url_path": src.get("url_path"), "brand": brand,
@@ -87,6 +168,8 @@ def normalize(src, maps):
         "positions": json.dumps(positions, ensure_ascii=False) if positions else None,
         "created_at": src.get("created_at"),
     }
+    if ex is not None:
+        p["_extras"] = ex
     p["search"] = db.fold(" ".join(filter(None, [p["name"], brand, p["cat2"], p["cat3"], sku, p["ean"]])))
     params = []
     for code, value in src.items():
@@ -136,6 +219,11 @@ def upsert(con, p, params, today):
             result = "changed"
         elif p["price"] and not oldp:
             con.execute("INSERT OR REPLACE INTO price_history VALUES(?,?,?)", (p["sku"], today, p["price"]))
+    if "_extras" in p:
+        if p["_extras"]:
+            con.execute("INSERT OR REPLACE INTO extras VALUES(?,?)", (p["sku"], json.dumps(p["_extras"], ensure_ascii=False)))
+        else:
+            con.execute("DELETE FROM extras WHERE sku=?", (p["sku"],))
     con.execute("DELETE FROM product_attrs WHERE sku=?", (p["sku"],))
     con.executemany("INSERT OR IGNORE INTO product_attrs VALUES(?,?,?)", params)
     return result
@@ -192,6 +280,22 @@ def sync_ratings(con, client, today, log=print, parts=3):
     con.commit()
 
 
+def extra_maps(attrs):
+    """Volby atributů, které nesou víc než jen popisek: bannery akcí a dokumenty (PDF)."""
+    out = {"banners": {}, "documents": {}}
+    for a in attrs:
+        if a["attribute_code"] == "banners":
+            for o in a.get("options") or []:
+                if str(o.get("value", "")).isdigit():
+                    b = promos.parse(o)
+                    out["banners"][b["id"]] = b
+        elif a["attribute_code"] == "documents":
+            for o in a.get("options") or []:
+                if str(o.get("value", "")).isdigit():
+                    out["documents"][int(o["value"])] = {"path": o.get("path"), "frontend_name": o.get("frontend_name")}
+    return out
+
+
 def run(limit=None, log=print):
     """Kompletní synchronizace. Bezpečné spustit kdykoli; souběžný běh se odmítne."""
     if not _lock.acquire(blocking=False):
@@ -219,6 +323,12 @@ def run(limit=None, log=print):
         STATUS["phase"] = "Parametry"
         attrs = client.attributes()
         maps = _opt_maps(attrs)
+        extra = extra_maps(attrs)
+        con.execute("DELETE FROM banners")
+        con.executemany("INSERT INTO banners VALUES(?,?,?,?,?,?,?,?,?,?,?,?)", [
+            (b["id"], b["label"], b["text"], b["link"], b["image"], b["background"], b["kind"], b["gift"],
+             b["start"], b["end"], b["store_only"], b["value"]) for b in extra["banners"].values()])
+        maps.pop("documents", None)  # 30 000 dokumentů do mezipaměti parametrů nepatří
         OPTIONS_CACHE.write_text(json.dumps(maps, ensure_ascii=False), encoding="utf-8")
         con.executemany("INSERT OR REPLACE INTO attrs VALUES(?,?,?,?)", [
             (a["attribute_code"], (a.get("frontend_label") or a["attribute_code"]).strip(),
@@ -228,7 +338,7 @@ def run(limit=None, log=print):
         STATUS["phase"] = "Katalog a ceny"
         for src, total in client.iter_products(limit=limit):
             STATUS["total"] = limit or total
-            p, params = normalize(src, maps)
+            p, params = normalize(src, maps, extra)
             res = upsert(con, p, params, today)
             counts["products"] += 1
             if res:

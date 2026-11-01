@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS product_attrs(sku TEXT, code TEXT, value TEXT, PRIMAR
 CREATE INDEX IF NOT EXISTS pa_code ON product_attrs(code, value);
 CREATE TABLE IF NOT EXISTS stores(code TEXT PRIMARY KEY, name TEXT, city TEXT);
 CREATE TABLE IF NOT EXISTS settings(key TEXT PRIMARY KEY, value TEXT);
+CREATE TABLE IF NOT EXISTS banners(id INTEGER PRIMARY KEY, label TEXT, text TEXT, link TEXT, image TEXT,
+  background TEXT, kind TEXT, gift TEXT, start TEXT, "end" TEXT, store_only INTEGER, value INTEGER);
+CREATE TABLE IF NOT EXISTS extras(sku TEXT PRIMARY KEY, data TEXT) WITHOUT ROWID;
 CREATE TABLE IF NOT EXISTS runs(id INTEGER PRIMARY KEY, started TEXT, finished TEXT, status TEXT,
   products INTEGER, changed INTEGER, new INTEGER, error TEXT);
 CREATE TABLE IF NOT EXISTS restock(sku TEXT, store TEXT, day TEXT, PRIMARY KEY(sku, store, day)) WITHOUT ROWID;

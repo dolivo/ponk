@@ -31,6 +31,8 @@ LABELS = {
     "warranty": "Prodloužená záruka",
     "qty_discount": "Množstevní sleva",
     "new": "Novinka",
+    "gift": "Dárek k nákupu",
+    "promo": "Akce výrobce",
 }
 
 UNITS = {

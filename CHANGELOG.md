@@ -3,6 +3,19 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.12.0
+- **Akce výrobců a dárky k nákupu** z webu Bauhausu (např. Ryobi: startovací sada zdarma k nářadí
+  ONE+ při nákupu na prodejně). V detailu produktu hned pod cenou je karta akce v barvách výrobce:
+  co dostanete zdarma a v jaké hodnotě, „Jen na prodejně“, do kdy akce platí a odkaz na podmínky.
+  Rozpoznává dárky, cashback, soutěže a akce typu 2+1; prošlé akce se nezobrazují.
+- Na dlaždicích štítek „Dárek k nákupu“ / „Akce výrobce“, rychlý filtr „Dárek k nákupu“ v katalogu
+  a na úvodní stránce sekce „Dárky k nákupu“ a „Akce výrobců: cashback a soutěže“.
+- Další údaje z webu Bauhausu v detailu: množstevní sleva (cena za kus od N kusů), prodloužená
+  záruka BAUHAUS, Exkluzivně v BAUHAUS, montážní servis, půjčovna, energetická třída, obsah balení,
+  dokumenty a návody (PDF), související produkty a příslušenství, podobné produkty, produkty ze
+  stejné série, výrobce/dovozce a bezpečnostní upozornění u chemie.
+- Totéž ve webové aplikaci. Data mají schéma 4 (starší verze aplikace je dál načtou, jen bez novinek).
+
 ## 0.11.0
 - **Menu pro jednu ruku**: hlavní menu je svisle u pravého okraje obrazovky ve spodní části,
   kam dosáhne palec (skleněný panel, na iOS 26 Liquid Glass). Ve Více → Umístění menu jde přepnout

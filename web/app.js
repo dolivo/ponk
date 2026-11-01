@@ -469,6 +469,36 @@ function openSaveSheet() {
 }
 
 // --- Detail produktu -------------------------------------------------------
+const PROMO_TITLE = { gift: "Dárek k nákupu", deal: "Množstevní akce", cashback: "Cashback a odměna", contest: "Soutěž", service: "Servis a záruka" };
+function promoCard(b) {
+  const bg = /^#?[0-9a-f]{3,6}$/i.test(b.background || "") ? (b.background.startsWith("#") ? b.background : `#${b.background}`) : "#333";
+  const hex = bg.length === 4 ? bg.slice(1).split("").map((c) => c + c).join("") : bg.slice(1);
+  const [r, g, bl] = [0, 2, 4].map((i) => parseInt(hex.slice(i, i + 2), 16));
+  const ink = 0.299 * r + 0.587 * g + 0.114 * bl > 160 ? "#1a1a1a" : "#fff";
+  const end = b.end ? new Date(b.end).toLocaleDateString("cs-CZ") : "";
+  return `<div class="promo" style="background:${bg};color:${ink}">
+    <div class="ptitle"><b>${PROMO_TITLE[b.kind] || "Informace"}</b>${b.kind === "gift" && b.value ? ` <span>v hodnotě ${money(b.value)} Kč</span>` : ""}</div>
+    ${b.kind === "gift" && b.gift ? `<div class="pgift">Zdarma získáte ${esc(b.gift)}</div>` : ""}
+    <p>${esc(b.text)}</p>
+    <div class="ptags">${b.store_only ? "<span>Jen na prodejně</span>" : ""}${end ? `<span>Do ${end}</span>` : ""}${b.link ? `<a href="${esc(b.link)}" target="_blank" rel="noopener" style="color:${ink}">Podmínky ↗</a>` : ""}</div></div>`;
+}
+function badges(p) {
+  const out = [];
+  if (p.warranty) out.push(`Prodloužená záruka BAUHAUS ${esc(p.warranty)}`);
+  if (p.exclusive) out.push("Exkluzivně v BAUHAUS");
+  if (p.assembly) out.push("Montážní servis");
+  if (p.rental) out.push("Jde i půjčit v půjčovně");
+  if (p.energy) out.push(`Energetická třída ${esc(p.energy)}`);
+  return out.length ? `<div class="chipset">${out.map((x) => `<span class="flag">${x}</span>`).join("")}</div>` : "";
+}
+function safetyHtml(s) {
+  if (!s) return "";
+  const h = [...(s.hazardstatements || []), ...(s.euhazardstatements || [])];
+  const pre = s.precautionarystatements || [];
+  return `<div class="safety"><b>⚠ ${esc((s.ghssignalword || ["Bezpečnostní upozornění"])[0])}</b>${s.ghspictogram ? ` <span class="muted">${esc(s.ghspictogram.join(", "))}</span>` : ""}
+    ${h.map((x) => `<div>${esc(x)}</div>`).join("")}
+    ${pre.length ? `<details><summary>Pokyny pro bezpečné zacházení (${pre.length})</summary>${pre.map((x) => `<div>${esc(x)}</div>`).join("")}</details>` : ""}</div>`;
+}
 async function Product(sku, refresh = false) {
   if (!refresh) view.innerHTML = `<div class="skeleton"></div>`;
   const p = await api(`product/${encodeURIComponent(sku)}${refresh ? "?refresh=1" : ""}`);
@@ -498,6 +528,8 @@ async function Product(sku, refresh = false) {
         ${p.was_price ? `<div class="pmeta">Původně <s>${money(p.was_price)} Kč</s></div>` : ""}
         ${p.unit_price ? `<div class="pmeta">${nf2.format(p.unit_price)} Kč/${esc(p.unit)}</div>` : ""}
         <div class="pmeta">${change}</div></div>
+      ${(p.promos || []).map(promoCard).join("")}
+      ${p.tiers ? `<div class="tiers"><b>Množstevní sleva</b>${p.tiers.map((t) => `<div><span>od ${t.qty} ks</span><b>${nf2.format(t.price)} Kč/ks</b></div>`).join("")}</div>` : ""}
       <div class="btn-row">
         <button class="btn ${watching ? "" : "btn-primary"}" id="watch">${icon("eye")}${watching ? "Přestat hlídat" : "Hlídat cenu"}</button>
         <a class="btn btn-quiet" href="https://www.bauhaus.cz/${esc(p.url_path)}" target="_blank" rel="noopener">${icon("ext")}Na bauhaus.cz</a>
@@ -506,6 +538,8 @@ async function Product(sku, refresh = false) {
       ${watching ? `<div class="pmeta">Hlídáš od ${day(p.watch.added)} (tehdy ${money(p.watch.added_price)} Kč)${p.watch.target ? `, cílová cena ${money(p.watch.target)} Kč` : ""}.</div>` : ""}
       ${p.labels.length ? `<div class="chipset">${p.labels.map((l) => `<span class="flag ${l === "sell_off" ? "red" : ""}">${esc(state.meta.labels[l] || l)}</span>`).join("")}</div>` : ""}
       ${p.usps.length ? `<ul class="usps">${p.usps.map((u) => `<li>${esc(u)}</li>`).join("")}</ul>` : ""}
+      ${badges(p)}
+      ${p.box ? `<section class="block"><h2>Obsah balení</h2><ul class="usps">${p.box.split(";").map((x) => x.trim()).filter(Boolean).map((x) => `<li>${esc(x)}</li>`).join("")}</ul></section>` : ""}
       <section class="block"><h2>Kde je skladem</h2><div class="stores">
         <div class="store"><span class="sname">E-shop</span><span class="sq ${p.online_in_stock && p.online_qty > 0 ? "" : "no"}">${p.online_in_stock && p.online_qty > 0 ? `${money(p.online_qty)} ks` : "není"}</span></div>
         ${stores.map((s) => `<div class="store ${s.code === my ? "mine" : ""}"><span class="sname">${esc(s.name)}</span>
@@ -515,6 +549,8 @@ async function Product(sku, refresh = false) {
       <section class="block"><h2>Hodnocení zákazníků</h2><div id="reviews"><p class="muted">Načítám recenze…</p></div></section>
       ${p.params.length ? `<section class="block"><h2>Parametry</h2><table class="params">${p.params.map((x) => `<tr><th>${esc(x.label)}</th><td>${esc(x.value)}</td></tr>`).join("")}</table></section>` : ""}
       ${p.description ? `<section class="block"><h2>Popis</h2><div class="desc">${sanitize(p.description)}</div></section>` : ""}
+      ${p.documents ? `<section class="block"><h2>Dokumenty a návody</h2><div class="docs">${p.documents.map((d) => `<a href="${esc(d.url)}" target="_blank" rel="noopener">${icon("ext")}${esc(d.name)} <span>PDF</span></a>`).join("")}</div></section>` : ""}
+      ${p.producer || p.safety ? `<section class="block"><h2>Výrobce a bezpečnost</h2>${safetyHtml(p.safety)}${p.producer ? `<p><span class="muted">Výrobce / dovozce</span><br><b>${esc(p.producer.name)}</b>${p.producer.address ? `<br>${esc(p.producer.address)}` : ""}${p.producer.email ? `<br><a href="mailto:${esc(p.producer.email)}">${esc(p.producer.email)}</a>` : ""}</p>` : ""}</section>` : ""}
     </div></article>`;
   const gal = $("#gal");
   if (gal && pics.length > 1) gal.onscroll = () => { const i = Math.round(gal.scrollLeft / gal.clientWidth); $$(".dots i").forEach((d, j) => d.classList.toggle("on", i === j)); };

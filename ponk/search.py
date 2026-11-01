@@ -232,7 +232,33 @@ def product(con, sku, store=None):
         "WHERE pa.sku=? GROUP BY a.code ORDER BY a.label", (sku,))]
     w = con.execute("SELECT * FROM watch WHERE sku=?", (sku,)).fetchone()
     p["watch"] = dict(w) if w else None
+    p.update(extras(con, sku))
     return p
+
+
+def extras(con, sku):
+    """Doplňky z webu Bauhausu: akce výrobců, obsah balení, dokumenty, výrobce…"""
+    try:
+        row = con.execute("SELECT data FROM extras WHERE sku=?", (sku,)).fetchone()
+    except Exception:  # starší databáze bez tabulky
+        return {}
+    if not row:
+        return {}
+    e = json.loads(row[0])
+    out = {k: e[k] for k in ("box", "warranty", "energy", "documents", "producer", "safety", "tiers") if e.get(k)}
+    for k in ("exclusive", "assembly", "rental"):
+        if e.get(k):
+            out[k] = True
+    ids = e.get("banners") or []
+    if ids:
+        import datetime
+        today = datetime.date.today().isoformat()
+        order = {"gift": 0, "deal": 1, "cashback": 2, "contest": 3}
+        rows = con.execute(f"SELECT * FROM banners WHERE id IN ({','.join('?' * len(ids))}) "
+                           "AND (\"end\" IS NULL OR \"end\" >= ?) AND (start IS NULL OR start <= ?)",
+                           (*ids, today, today)).fetchall()
+        out["promos"] = sorted((dict(r) for r in rows), key=lambda b: order.get(b["kind"], 9))
+    return out
 
 
 def home(con, store):

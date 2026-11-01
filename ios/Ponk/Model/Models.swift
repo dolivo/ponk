@@ -279,6 +279,21 @@ struct ProductDetail: Codable {
     let stock: [String: Double]
     let params: [Param]
     let watch: WatchInfo?
+    // akce výrobců a doplňky detailu (z denních dat; starší data je nemají)
+    var promos: [Promo]? = nil
+    var box: String? = nil
+    var warranty: String? = nil
+    var energy: String? = nil
+    var exclusive: Bool? = nil
+    var assembly: Bool? = nil
+    var rental: Bool? = nil
+    var documents: [ProductDocument]? = nil
+    var producer: Producer? = nil
+    var safety: [String: [String]]? = nil
+    var tiers: [TierPrice]? = nil
+    var related: [Item]? = nil
+    var alternatives: [Item]? = nil
+    var series: [Item]? = nil
     var active: Int? = nil
     var rating_count: Int? = nil
     var last_price: Double? = nil
@@ -386,4 +401,62 @@ struct InList: Codable, Hashable {
     let name: String
     let qty: Double
     let checked: Int
+}
+
+// --- akce výrobců a doplňky detailu -----------------------------------------
+
+/// Akce u produktu z webu Bauhausu: dárek k nákupu, cashback, soutěž, servis.
+struct Promo: Codable, Identifiable, Hashable {
+    let id: Int
+    let label: String?
+    let text: String
+    let link: String?
+    let image: String?
+    let background: String?
+    let kind: String
+    let gift: String?
+    let start: String?
+    let end: String?
+    let store_only: Int?
+    let value: Int?
+
+    var storeOnly: Bool { (store_only ?? 0) != 0 }
+
+    var kindTitle: String {
+        switch kind {
+        case "gift": return "Dárek k nákupu"
+        case "deal": return "Množstevní akce"
+        case "cashback": return "Cashback a odměna"
+        case "contest": return "Soutěž"
+        case "service": return "Servis a záruka"
+        default: return "Informace"
+        }
+    }
+
+    var symbol: String {
+        switch kind {
+        case "gift": return "gift.fill"
+        case "deal": return "plus.square.on.square"
+        case "cashback": return "banknote.fill"
+        case "contest": return "trophy.fill"
+        case "service": return "wrench.and.screwdriver.fill"
+        default: return "info.circle.fill"
+        }
+    }
+}
+
+struct ProductDocument: Codable, Hashable {
+    let name: String
+    let url: String
+}
+
+struct Producer: Codable, Hashable {
+    let name: String
+    let address: String?
+    let email: String?
+}
+
+struct TierPrice: Codable, Hashable {
+    let qty: Int
+    let price: Double
 }

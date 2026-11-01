@@ -7,8 +7,9 @@ actor LocalEngine {
     static let labels: [String: String] = [
         "sell_off": "Výprodej", "sale": "Akce", "free_shipping": "Doprava zdarma", "only_online": "Jen online",
         "warranty": "Prodloužená záruka", "qty_discount": "Množstevní sleva", "new": "Novinka",
+        "gift": "Dárek k nákupu", "promo": "Akce výrobce",
     ]
-    static let labelOrder = ["sell_off", "sale", "free_shipping", "only_online", "warranty", "qty_discount", "new"]
+    static let labelOrder = ["gift", "promo", "sell_off", "sale", "free_shipping", "only_online", "warranty", "qty_discount", "new"]
     static let pageSize = 30
 
     private var db: SQLiteDB?
@@ -25,7 +26,7 @@ actor LocalEngine {
     var hasData: Bool { db != nil }
 
     /// Co stažená data obsahují (starší data z GitHubu nemusí mít nové tabulky).
-    private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false }
+    private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false; var extras = false }
     private var caps = Caps()
 
     // MARK: - otevření a příprava dat
@@ -55,7 +56,7 @@ actor LocalEngine {
         let cols = Set(try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String })
         let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
         caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"),
-                    ratingCount: cols.contains("rating_count"))
+                    ratingCount: cols.contains("rating_count"), extras: tables.contains("extras") && tables.contains("banners"))
         db = d
         suggestIndex = nil
         speller = nil
@@ -613,7 +614,7 @@ actor LocalEngine {
         }
         // Sekce určuje soubor ponk/home_sections.json na GitHubu – nové jdou přidat bez aktualizace aplikace.
         var defs: [[String: Any]] = []
-        if let json = info("home_sections"), let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]] {
+        if let json = info("home_sections_v2") ?? info("home_sections"), let parsed = try? JSONSerialization.jsonObject(with: Data(json.utf8)) as? [[String: Any]] {
             defs = parsed
         } else {
             defs = [["title": "Zlevněno při poslední kontrole", "query": ["drop_days": "1", "sort": "drop"]],
@@ -669,7 +670,37 @@ actor LocalEngine {
             WHERE pa.sku = ? GROUP BY av.code ORDER BY a.label
             """, [sku])
         if let w = try db.query("SELECT sku, added, added_price, target FROM u.watch WHERE sku = ?", [sku]).first { p["watch"] = w }
+        if caps.extras { try addExtras(&p, sku: sku, db: db) }
         return p
+    }
+
+    /// Akce výrobců (dárky, cashback…), obsah balení, dokumenty, výrobce, bezpečnost,
+    /// množstevní ceny a související produkty – připravuje denní úloha na GitHubu.
+    private func addExtras(_ p: inout [String: Any], sku: String, db: SQLiteDB) throws {
+        guard let raw = try db.scalar("SELECT data FROM extras WHERE sku = ?", [sku]) as? String,
+              let e = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [String: Any] else { return }
+        let today = Self.today()
+        if let ids = e["banners"] as? [Int], !ids.isEmpty {
+            let marks = Array(repeating: "?", count: ids.count).joined(separator: ",")
+            p["promos"] = try db.query("""
+                SELECT id, label, text, link, image, background, kind, gift, start, "end", store_only, value FROM banners
+                WHERE id IN (\(marks)) AND ("end" IS NULL OR "end" >= ?) AND (start IS NULL OR start <= ?)
+                ORDER BY CASE kind WHEN 'gift' THEN 0 WHEN 'deal' THEN 1 WHEN 'cashback' THEN 2 WHEN 'contest' THEN 3 ELSE 4 END
+                """, ids + [today, today])
+        }
+        for key in ["box", "warranty", "energy", "documents", "producer", "safety", "tiers"] {
+            if let v = e[key] { p[key] = v }
+        }
+        p["exclusive"] = (e["exclusive"] as? Int ?? 0) == 1
+        p["assembly"] = (e["assembly"] as? Int ?? 0) == 1
+        p["rental"] = (e["rental"] as? Int ?? 0) == 1
+        let links = e["links"] as? [String: [String]] ?? [:]
+        func items(_ skus: [String]) throws -> [[String: Any]] {
+            try itemsBySKU(skus.filter { $0 != sku }).filter { $0["price"] is Double }
+        }
+        p["related"] = try items((links["related"] ?? []) + (links["crosssell"] ?? []))
+        p["alternatives"] = try items(links["upsell"] ?? [])
+        p["series"] = try items(e["series"] as? [String] ?? [])
     }
 
     /// Produkty podle kódů ve stejném pořadí (naposledy prohlížené).

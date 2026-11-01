@@ -410,3 +410,19 @@ main { max-width: 1360px; margin: 0 auto; padding: 0 0 calc(var(--tabbar-h) + en
 .reply { margin-top: 8px; padding: 10px; border-radius: 4px; background: var(--surface-2); font-size: 14px; }
 @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --star: #FFC233; } }
 :root[data-theme="dark"] { --star: #FFC233; }
+
+/* akce výrobců a doplňky detailu */
+.promo { border-radius: 10px; padding: 14px; margin-top: 12px; }
+.promo .ptitle { font-weight: 800; font-size: 17px; }
+.promo .ptitle span { font-weight: 600; opacity: .85; font-size: 14px; }
+.promo .pgift { font-weight: 800; font-size: 18px; margin-top: 6px; }
+.promo p { margin: 6px 0 8px; font-size: 14px; opacity: .92; }
+.promo .ptags { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.promo .ptags span { background: rgba(127,127,127,.22); border-radius: 99px; padding: 3px 9px; font-size: 13px; font-weight: 600; }
+.promo .ptags a { margin-left: auto; font-weight: 700; font-size: 14px; }
+.tiers { margin-top: 12px; border: 1px solid var(--line, #d8d9db); border-radius: 8px; padding: 10px 12px; }
+.tiers div { display: flex; justify-content: space-between; padding-top: 4px; }
+.docs a { display: flex; gap: 8px; align-items: center; padding: 10px 0; border-top: 1px solid var(--line, #d8d9db); font-weight: 600; }
+.docs a span { margin-left: auto; opacity: .6; font-size: 13px; }
+.safety div { font-size: 14px; margin-top: 4px; }
+.safety details { margin-top: 8px; font-size: 14px; }

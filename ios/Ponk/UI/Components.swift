@@ -77,6 +77,8 @@ struct Flags: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
+            if item.labels.contains("gift") { Flag(text: "Dárek k nákupu", color: Color(light: 0xF2C300, dark: 0xF2C300), ink: Color(light: 0x1A1A1A, dark: 0x1A1A1A)) }
+            else if item.labels.contains("promo") { Flag(text: "Akce výrobce", color: .ponkInk, ink: .ponkPage) }
             if item.labels.contains("sell_off") { Flag(text: "Výprodej", color: .ponkRed, ink: .white) }
             if let changed = item.price_changed_at, changed == app.meta?.last_change, (item.drop_pct ?? 0) > 0 {
                 Flag(text: "Zlevněno", color: .ponkGreen, ink: .white)
