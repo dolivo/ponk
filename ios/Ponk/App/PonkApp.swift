@@ -53,6 +53,8 @@ struct RootView: View {
     @State private var visited: Set<AppTab> = []
     /// Opětovné klepnutí na otevřenou záložku ji vrátí na začátek.
     @State private var resets: [AppTab: Int] = [:]
+    /// Druhé klepnutí na Hledat otevře pole hledání s klávesnicí.
+    @State private var searchFocus = 0
 
     private var side: MenuSide { MenuSide(rawValue: menuSide) ?? .right }
 
@@ -100,7 +102,7 @@ struct RootView: View {
             // Nákupní seznamy a hlídané produkty
             NavigationStack { MyStuffView().ponkDestinations() }
         case .search:
-            SearchTab()
+            SearchTab(focusTrigger: searchFocus)
         case .more:
             NavigationStack { MoreView() }
         }
@@ -108,7 +110,9 @@ struct RootView: View {
 
     /// Klasická spodní lišta (systémová, na iOS 26 Liquid Glass).
     private var tabBarLayout: some View {
-        TabView(selection: $tab) {
+        TabView(selection: Binding(get: { tab }, set: { new in
+            if new == tab { reselect(new) } else { tab = new }
+        })) {
             Tab("Katalog", systemImage: "square.grid.2x2", value: AppTab.catalog) { screen(.catalog) }
             Tab("Slevy", systemImage: "tag", value: AppTab.home) { screen(.home) }
             Tab("Seznam", systemImage: "checklist", value: AppTab.watch) { screen(.watch) }
@@ -120,6 +124,11 @@ struct RootView: View {
         .ponkMinimizingTabBar()
     }
 
+    /// Klepnutí na už otevřenou záložku: Hledat otevře klávesnici, ostatní se vrátí na začátek.
+    private func reselect(_ t: AppTab) {
+        if t == .search { searchFocus += 1 } else if side != .bottom { resets[t, default: 0] += 1 }
+    }
+
     /// Svislé menu u okraje obrazovky. Záložky se vytvoří při prvním otevření a pak zůstávají
     /// naživu (skryté), takže si drží rozscrollovaný seznam i otevřené detaily jako u spodní lišty.
     private var sideLayout: some View {
@@ -129,18 +138,25 @@ struct RootView: View {
                     screen(t)
                         .id(resets[t, default: 0])
                         .opacity(t == tab ? 1 : 0)
+                        .scaleEffect(t == tab ? 1 : 0.985)
+                        // jemné prolnutí obrazovek jako u systémové lišty
+                        .animation(.easeOut(duration: 0.18), value: tab)
                         .allowsHitTesting(t == tab)
                         .accessibilityHidden(t != tab)
                 }
             }
         }
-        .overlay(alignment: side == .left ? .bottomLeading : .bottomTrailing) {
-            SideMenu(selection: $tab, badge: app.meta?.watched_drops ?? 0) { t in
-                resets[t, default: 0] += 1
+        .overlay {
+            SideMenu(selection: $tab, badge: app.meta?.watched_drops ?? 0, side: side) { t in
+                reselect(t)
             }
             .padding(side == .left ? .leading : .trailing, 8)
             // nad plovoucími tlačítky Filtry / Řazení, v dosahu palce
             .padding(.bottom, 92)
+            .frame(maxWidth: .infinity, maxHeight: .infinity,
+                   alignment: side == .left ? .bottomLeading : .bottomTrailing)
+            // přepnutí strany ve Více: menu plynule přejede na druhý okraj
+            .animation(.spring(response: 0.45, dampingFraction: 0.8), value: side)
             .ignoresSafeArea(.keyboard)
         }
         .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
@@ -148,10 +164,20 @@ struct RootView: View {
 }
 
 /// Svislé skleněné menu pro ovládání jednou rukou.
+/// Animace jako u systémové lišty iOS: zvýraznění vybrané záložky pružně přejede na novou,
+/// ikona se při klepnutí zhoupne a vyplní, tlačítko se při stisku zmáčkne, odznak se přepočítá
+/// a menu při spuštění vyjede od okraje.
 struct SideMenu: View {
     @Binding var selection: AppTab
     let badge: Int
+    var side: MenuSide = .right
     var onReselect: (AppTab) -> Void
+
+    @Namespace private var ns
+    /// Záložka, pod kterou je zvýraznění (animuje se odděleně od přepnutí obrazovky).
+    @State private var shown: AppTab?
+    @State private var bounce: [AppTab: Int] = [:]
+    @State private var appeared = false
 
     private struct Item: Identifiable {
         let tab: AppTab
@@ -171,25 +197,32 @@ struct SideMenu: View {
     var body: some View {
         VStack(spacing: 2) {
             ForEach(items) { item in
-                let on = selection == item.tab
+                let on = (shown ?? selection) == item.tab
                 Button {
-                    if on { onReselect(item.tab) } else { selection = item.tab }
+                    bounce[item.tab, default: 0] += 1
+                    if selection == item.tab { onReselect(item.tab) } else { selection = item.tab }
                 } label: {
                     VStack(spacing: 3) {
                         Image(systemName: item.icon)
                             .font(.system(size: 19, weight: .semibold))
+                            .symbolVariant(on ? .fill : .none)
+                            .contentTransition(.symbolEffect(.replace))
+                            .symbolEffect(.bounce.down, value: bounce[item.tab, default: 0])
                             .frame(height: 22)
                             .overlay(alignment: .topTrailing) {
                                 if item.tab == .watch, badge > 0 {
                                     Text("\(badge)")
                                         .font(.system(size: 10, weight: .bold))
+                                        .contentTransition(.numericText(value: Double(badge)))
                                         .foregroundStyle(.white)
                                         .padding(.horizontal, 4)
                                         .frame(minWidth: 16, minHeight: 16)
                                         .background(Color.ponkRed, in: Capsule())
                                         .offset(x: 10, y: -6)
+                                        .transition(.scale(scale: 0.3).combined(with: .opacity))
                                 }
                             }
+                            .animation(.spring(response: 0.35, dampingFraction: 0.6), value: badge)
                         Text(item.title)
                             .font(.ponk(11, .semibold, relativeTo: .caption2))
                             .lineLimit(1)
@@ -198,11 +231,15 @@ struct SideMenu: View {
                     .frame(width: 56, height: 52)
                     .foregroundStyle(on ? Color.ponkRed : Color.ponkInk)
                     .background {
-                        if on { RoundedRectangle(cornerRadius: 16).fill(Color.ponkRed.opacity(0.14)) }
+                        if on {
+                            RoundedRectangle(cornerRadius: 16)
+                                .fill(Color.ponkRed.opacity(0.14))
+                                .matchedGeometryEffect(id: "selection", in: ns)
+                        }
                     }
                     .contentShape(Rectangle())
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(MenuPressStyle())
                 .accessibilityLabel(item.tab == .watch && badge > 0 ? "\(item.title), \(badge) zlevněných" : item.title)
                 .accessibilityAddTraits(on ? .isSelected : [])
             }
@@ -210,6 +247,25 @@ struct SideMenu: View {
         .padding(5)
         .ponkGlassPanel(cornerRadius: 24)
         .sensoryFeedback(.selection, trigger: selection)
+        .offset(x: appeared ? 0 : (side == .left ? -90 : 90))
+        .opacity(appeared ? 1 : 0)
+        .onChange(of: selection, initial: true) { _, t in
+            if shown == nil { shown = t; return }
+            withAnimation(.spring(response: 0.34, dampingFraction: 0.74)) { shown = t }
+        }
+        .onAppear {
+            withAnimation(.spring(response: 0.55, dampingFraction: 0.78).delay(0.25)) { appeared = true }
+        }
+    }
+}
+
+/// Stisk tlačítka v menu: lehké zmáčknutí s pružným návratem (jako systémové ovládací prvky).
+private struct MenuPressStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .scaleEffect(configuration.isPressed ? 0.88 : 1)
+            .brightness(configuration.isPressed ? -0.04 : 0)
+            .animation(.spring(response: 0.25, dampingFraction: 0.6), value: configuration.isPressed)
     }
 }
 

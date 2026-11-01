@@ -735,31 +735,46 @@ private struct CategoryCrumbs: View {
 }
 
 /// Jednoduché zalamování prvků do řádků (drobečková navigace).
+/// Měření i rozmístění počítá řádky stejnou funkcí ze stejné šířky (s malou tolerancí na
+/// zaokrouhlení na pixely), takže se poslední prvek nikdy „nepřelije“ na řádek navíc,
+/// se kterým by výška nepočítala a překryl by název produktu. Dlouhý prvek se zalomí uvnitř.
 private struct FlowLayout: Layout {
     var spacing: CGFloat = 4
     var lineSpacing: CGFloat = 4
 
+    private struct Row { var items: [(Int, CGSize)] = []; var height: CGFloat = 0 }
+
+    private func rows(_ width: CGFloat, _ subviews: Subviews) -> [Row] {
+        var rows: [Row] = [Row()]
+        var x: CGFloat = 0
+        for (i, v) in subviews.enumerated() {
+            var s = v.sizeThatFits(.unspecified)
+            if s.width > width { s = v.sizeThatFits(ProposedViewSize(width: width, height: nil)); s.width = min(s.width, width) }
+            if x > 0, x + s.width > width + 0.5 { rows.append(Row()); x = 0 }
+            rows[rows.count - 1].items.append((i, s))
+            rows[rows.count - 1].height = max(rows[rows.count - 1].height, s.height)
+            x += s.width + spacing
+        }
+        return rows
+    }
+
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
-        var x: CGFloat = 0, y: CGFloat = 0, line: CGFloat = 0, maxX: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x > 0, x + s.width > width { y += line + lineSpacing; x = 0; line = 0 }
-            x += s.width + spacing
-            line = max(line, s.height)
-            maxX = max(maxX, x - spacing)
-        }
-        return CGSize(width: min(maxX, width), height: y + line)
+        let r = rows(width, subviews)
+        let w = r.map { $0.items.reduce(0) { $0 + $1.1.width } + spacing * CGFloat(max($0.items.count - 1, 0)) }.max() ?? 0
+        let h = r.reduce(0) { $0 + $1.height } + lineSpacing * CGFloat(max(r.count - 1, 0))
+        return CGSize(width: width.isFinite ? width : w, height: h)
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX, y = bounds.minY, line: CGFloat = 0
-        for v in subviews {
-            let s = v.sizeThatFits(.unspecified)
-            if x > bounds.minX, x + s.width > bounds.maxX { y += line + lineSpacing; x = bounds.minX; line = 0 }
-            v.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(s))
-            x += s.width + spacing
-            line = max(line, s.height)
+        var y = bounds.minY
+        for row in rows(proposal.width ?? bounds.width, subviews) {
+            var x = bounds.minX
+            for (i, s) in row.items {
+                subviews[i].place(at: CGPoint(x: x, y: y + (row.height - s.height) / 2), proposal: ProposedViewSize(s))
+                x += s.width + spacing
+            }
+            y += row.height + lineSpacing
         }
     }
 }

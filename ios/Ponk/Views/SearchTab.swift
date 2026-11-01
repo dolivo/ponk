@@ -2,7 +2,11 @@ import SwiftUI
 
 /// Záložka hledání (v iOS 26 samostatné skleněné tlačítko). Bez zadaného textu ukazuje kategorie.
 struct SearchTab: View {
+    /// Mění se při dalším klepnutí na Hledat v menu: vrátí se na začátek a otevře klávesnici.
+    var focusTrigger = 0
     @Environment(AppModel.self) private var app
+    @FocusState private var searchFocused: Bool
+    @State private var searchShown = false
     @State private var path = NavigationPath()
     @State private var text = ""
     @State private var suggest: SuggestResponse?
@@ -11,11 +15,22 @@ struct SearchTab: View {
     var body: some View {
         NavigationStack(path: $path) {
             CategoryBrowser(cat1: nil, cat2: nil)
-                .searchable(text: $text, prompt: "Hledat v nabídce Bauhausu")
+                .searchable(text: $text, isPresented: $searchShown, prompt: "Hledat v nabídce Bauhausu")
+                .searchFocused($searchFocused)
                 .searchSuggestions { suggestions }
                 .onSubmit(of: .search) { submit(text) }
                 .task(id: text) { await loadSuggestions() }
                 .ponkDestinations()
+        }
+        .onChange(of: focusTrigger) {
+            let wasDeep = !path.isEmpty
+            path = NavigationPath()
+            Task { @MainActor in
+                // po návratu na začátek zásobníku, aby pole hledání bylo vidět
+                try? await Task.sleep(for: .milliseconds(wasDeep ? 400 : 30))
+                searchShown = true
+                searchFocused = true
+            }
         }
     }
 

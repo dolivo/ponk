@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.13.0
+- Boční menu má animace jako systémová lišta iOS: zvýraznění vybrané záložky pružně přejede
+  na novou, ikona se při klepnutí zhoupne a vyplní, tlačítko se při stisku zmáčkne, odznak
+  zlevněných se plynule přepočítá, menu při spuštění vyjede od okraje a při přepnutí strany
+  ve Více přejede na druhý okraj. Obrazovky se při přepnutí jemně prolnou.
+- Druhé klepnutí na Hledat (v bočním menu i ve spodní liště) vrátí hledání na začátek
+  a rovnou otevře pole hledání s klávesnicí.
+- Oprava: kategorie nad názvem produktu se při zalomení do dvou řádků překrývaly s názvem.
+
 ## 0.12.0
 - **Akce výrobců a dárky k nákupu** z webu Bauhausu (např. Ryobi: startovací sada zdarma k nářadí
   ONE+ při nákupu na prodejně). V detailu produktu hned pod cenou je karta akce v barvách výrobce:
