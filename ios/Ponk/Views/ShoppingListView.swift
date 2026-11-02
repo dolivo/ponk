@@ -9,6 +9,7 @@ struct MyStuffView: View {
         Group {
             if section == 0 { ShoppingListView() } else { WatchView() }
         }
+        .clearOfSideMenu()
         .safeAreaInset(edge: .top, spacing: 0) {
             Picker("Zobrazit", selection: $section) {
                 Text("Nákupní seznam").tag(0)

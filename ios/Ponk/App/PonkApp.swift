@@ -42,6 +42,33 @@ enum MenuSide: String, CaseIterable {
     case right, left, bottom
 }
 
+private struct SideMenuSideKey: EnvironmentKey { static let defaultValue = MenuSide.bottom }
+
+extension EnvironmentValues {
+    /// Na které straně je boční menu (u spodní lišty `.bottom`).
+    var sideMenuSide: MenuSide {
+        get { self[SideMenuSideKey.self] }
+        set { self[SideMenuSideKey.self] = newValue }
+    }
+}
+
+/// Seznamy s ovládáním u okraje (cena, mazání přejetím) se zúží, aby nebyly pod bočním menem.
+private struct ClearOfSideMenu: ViewModifier {
+    @Environment(\.sideMenuSide) private var side
+
+    func body(content: Content) -> some View {
+        switch side {
+        case .right: content.safeAreaPadding(.trailing, 62)
+        case .left: content.safeAreaPadding(.leading, 62)
+        case .bottom: content
+        }
+    }
+}
+
+extension View {
+    func clearOfSideMenu() -> some View { modifier(ClearOfSideMenu()) }
+}
+
 struct RootView: View {
     @Environment(AppModel.self) private var app
     @Environment(\.scenePhase) private var scenePhase
@@ -139,6 +166,7 @@ struct RootView: View {
             ForEach(AppTab.allCases, id: \.self) { t in
                 if visited.contains(t) || t == tab {
                     screen(t)
+                        .environment(\.sideMenuSide, side)
                         .id(resets[t, default: 0])
                         .opacity(t == tab ? 1 : 0)
                         .scaleEffect(t == tab ? 1 : 0.985)

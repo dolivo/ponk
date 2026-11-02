@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.13.2
+- Oprava: v nákupním seznamu a hlídaných zasahovalo boční menu do položek (cena, tlačítko Smazat
+  po přejetí prstem). Seznam se teď u bočního menu zúží, takže je všechno vedle menu a klikatelné.
+
 ## 0.13.1
 - Když vyjede klávesnice, boční menu pružně přejede nahoru (pod horní lištu), aby nebylo schované
   pod klávesnicí a šlo na něj klepat. Po schování klávesnice se vrátí zpět dolů.
