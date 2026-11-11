@@ -144,7 +144,7 @@ struct RootView: View {
     /// Klasická spodní lišta (systémová, na iOS 26 Liquid Glass).
     private var tabBarLayout: some View {
         TabView(selection: Binding(get: { tab }, set: { new in
-            if new == tab { reselect(new) } else { tab = new }
+            if new == tab { reselect(new) } else { hideKeyboard(); tab = new }
         })) {
             Tab("Katalog", systemImage: "square.grid.2x2", value: AppTab.catalog) { screen(.catalog).modifier(TabEntrance()) }
             Tab("Slevy", systemImage: "tag", value: AppTab.home) { screen(.home).modifier(TabEntrance()) }
@@ -160,7 +160,13 @@ struct RootView: View {
     /// Přepnutí záložky v bočním menu.
     private func switchTab(to new: AppTab) {
         guard new != tab else { return }
+        hideKeyboard()
         tab = new
+    }
+
+    /// Při odchodu ze záložky (hlavně z Hledat) se klávesnice schová; menu se pak vrátí dolů.
+    private func hideKeyboard() {
+        UIApplication.shared.sendAction(#selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil)
     }
 
     private func path(_ t: AppTab) -> Binding<NavigationPath> {

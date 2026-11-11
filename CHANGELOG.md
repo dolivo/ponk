@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.15.2
+- Při přepnutí z Hledat (nebo odkudkoli) na jinou záložku se klávesnice schová
+  a boční menu se vrátí dolů.
+
 ## 0.15.1
 - Klepnutí na Katalog, Slevy, Seznam nebo Více, když v nich už jsi, stránku znovu nenačítá.
   Je-li otevřený detail produktu nebo kategorie, jen se vrátí na hlavní stránku záložky.
