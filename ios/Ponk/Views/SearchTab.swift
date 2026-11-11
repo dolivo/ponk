@@ -7,6 +7,7 @@ struct SearchTab: View {
     @Environment(AppModel.self) private var app
     @FocusState private var searchFocused: Bool
     @State private var searchShown = false
+    @State private var showScanner = false
     @State private var path = NavigationPath()
     @State private var text = ""
     @State private var suggest: SuggestResponse?
@@ -17,11 +18,18 @@ struct SearchTab: View {
             CategoryBrowser(cat1: nil, cat2: nil)
                 .searchable(text: $text, isPresented: $searchShown, prompt: "Hledat v nabídce Bauhausu")
                 .searchFocused($searchFocused)
+                .toolbar {
+                    ToolbarItem(placement: .topBarTrailing) {
+                        Button { showScanner = true } label: { Image(systemName: "barcode.viewfinder") }
+                            .accessibilityLabel("Skenovat čárový kód")
+                    }
+                }
                 .searchSuggestions { suggestions }
                 .onSubmit(of: .search) { submit(text) }
                 .task(id: text) { await loadSuggestions() }
                 .ponkDestinations()
         }
+        .fullScreenCover(isPresented: $showScanner) { ScannerSheet() }
         .onChange(of: focusTrigger) {
             let wasDeep = !path.isEmpty
             path = NavigationPath()

@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.16.0
+- **Skener do prodejny** (ikona čárového kódu v Katalogu i v Hledat): namíříš na EAN na zboží
+  nebo cenovce a hned vidíš cenu, jestli je opravdu výhodná (skutečná sleva proti nejnižší ceně
+  za 30 dní, nebo že byla i levnější), sklad a regál ve své prodejně a dárek k nákupu či výprodej.
+  Tlačítkem přidáš do nákupního seznamu nebo začneš hlídat cenu, klepnutím otevřeš detail.
+- Skenuje se průběžně: každý další kód přidá kartu, předchozí jsou dole v historii.
+  Produkty, které ještě nejsou ve stažených datech, se dohledají živě na bauhaus.cz.
+- Funguje i pro kódy UPC (12 číslic) a kód produktu Bauhausu.
+
 ## 0.15.2
 - Při přepnutí z Hledat (nebo odkudkoli) na jinou záložku se klávesnice schová
   a boční menu se vrátí dolů.

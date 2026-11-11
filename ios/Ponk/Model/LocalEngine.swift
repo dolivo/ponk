@@ -165,6 +165,7 @@ actor LocalEngine {
         case "search": return try search(query)
         case "suggest": return try suggest(query["q"] ?? "")
         case "items": return ["items": try itemsBySKU(many(query, "skus"))]
+        case "ean": return ["items": try itemsByEAN(parts.count > 1 ? parts[1] : "")]
         case "storemap":
             guard parts.count > 1, let m = try storeMap(parts[1]) else { throw EngineError.notFound }
             return m
@@ -701,6 +702,18 @@ actor LocalEngine {
         p["related"] = try items((links["related"] ?? []) + (links["crosssell"] ?? []))
         p["alternatives"] = try items(links["upsell"] ?? [])
         p["series"] = try items(e["series"] as? [String] ?? [])
+    }
+
+    /// Produkty podle naskenovaného čárového kódu. EAN-13 i UPC (12 číslic, čtečka k nim
+    /// přidá nulu na začátek), případně kód produktu Bauhausu.
+    private func itemsByEAN(_ code: String) throws -> [[String: Any]] {
+        let digits = code.filter(\.isNumber)
+        guard digits.count >= 5 else { return [] }
+        let trimmed = String(digits.drop { $0 == "0" })
+        let rows = try data().query(
+            "SELECT sku FROM products WHERE ean = ? OR sku = ? OR (length(ean) BETWEEN 5 AND 13 AND ltrim(ean, '0') = ?) "
+            + "ORDER BY active DESC LIMIT 5", [digits, digits, trimmed])
+        return try itemsBySKU(rows.compactMap { $0["sku"] as? String })
     }
 
     /// Produkty podle kódů ve stejném pořadí (naposledy prohlížené).

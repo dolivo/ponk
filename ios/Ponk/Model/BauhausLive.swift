@@ -86,6 +86,26 @@ enum BauhausLive {
         return p
     }
 
+    /// Produkt podle čárového kódu přímo z bauhaus.cz (když ještě není ve stažených datech).
+    static func lookupEAN(_ code: String) async -> (sku: String, name: String, brand: String?, image: String?,
+                                                     price: Double?, url: URL?)? {
+        let digits = code.filter(\.isNumber)
+        guard digits.count >= 5 else { return nil }
+        var codes = [digits]
+        if digits.hasPrefix("0") { codes.append(String(digits.dropFirst())) }
+        guard let res = try? await post(catalog, [
+            "size": 1,
+            "query": ["bool": ["should": [["terms": ["ean": codes]], ["term": ["sku": digits]]], "minimum_should_match": 1]],
+            "_source": ["includes": ["sku", "name", "image", "image_webp", "final_price_incl_tax",
+                                     "price_incl_tax", "url_path"]],
+        ]), let src = ((res["hits"] as? [String: Any])?["hits"] as? [[String: Any]])?.first?["_source"] as? [String: Any],
+              let sku = src["sku"] as? String else { return nil }
+        let url = (src["url_path"] as? String).flatMap { URL(string: "https://www.bauhaus.cz/\($0)") }
+        return (sku, src["name"] as? String ?? "Produkt \(sku)", nil,
+                (src["image_webp"] ?? src["image"]) as? String,
+                num(src["final_price_incl_tax"]) ?? num(src["price_incl_tax"]), url)
+    }
+
     struct Shelf: Hashable {
         let shelf: String
         let field: String

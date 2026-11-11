@@ -96,9 +96,7 @@ struct ResultsView: View {
             SaveSearchSheet(query: query, suggestedName: route.title)
                 .presentationDetents([.height(260)])
         }
-        .sheet(isPresented: $showScanner) {
-            ScannerSheet { code in text = code }
-        }
+        .fullScreenCover(isPresented: $showScanner) { ScannerSheet() }
         .modifier(CatalogSearch(enabled: catalog, text: $text, query: $query))
         .task(id: query) {
             // návrat z detailu produktu: výsledky už jsou, nic znovu nenačítat
