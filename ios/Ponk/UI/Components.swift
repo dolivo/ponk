@@ -264,6 +264,7 @@ struct Shelf: View {
                         NavigationLink(value: ProductRoute(sku: item.sku)) { ProductRow(item: item) }
                             .buttonStyle(.plain)
                             .productMenu(item)
+                            .popIn()
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
@@ -274,6 +275,7 @@ struct Shelf: View {
                         NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item) }
                             .buttonStyle(.plain)
                             .productMenu(item)
+                            .popIn()
                             .onAppear { if item.id == items.last?.id { onLast?() } }
                     }
                 }
@@ -298,6 +300,7 @@ struct Rail: View {
                         .productMenu(item)
                         .frame(width: 172)
                         .frame(maxHeight: .infinity)
+                        .popIn()
                 }
             }
             .fixedSize(horizontal: false, vertical: true)
@@ -509,4 +512,77 @@ struct GlassGroup<Content: View>: View {
             content()
         }
     }
+}
+
+// --- položky, které při přepnutí záložky postupně vyskočí -----------------------
+
+/// Kdy se záložka naposledy objevila (předává se položkám přes prostředí).
+struct TabAppear: Equatable {
+    var tick = 0
+    var at = Date.distantPast
+}
+
+private struct TabAppearKey: EnvironmentKey { static let defaultValue = TabAppear() }
+
+extension EnvironmentValues {
+    var tabAppear: TabAppear {
+        get { self[TabAppearKey.self] }
+        set { self[TabAppearKey.self] = newValue }
+    }
+}
+
+/// Položka (dlaždice, řádek, kategorie) při otevření záložky pružně vyskočí. Zpoždění podle
+/// polohy na obrazovce: shora dolů a zleva doprava, takže se obsah „rozvlní“ od horního okraje.
+/// Položky, které se objeví hned po otevření (načtení dat), vyskočí taky; při běžném
+/// posouvání se nic neanimuje.
+private struct PopIn: ViewModifier {
+    @Environment(\.tabAppear) private var appear
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var trigger = 0
+    /// Poloha na obrazovce bez překreslování při posouvání (třída, ne @State hodnota).
+    @State private var pos = Pos()
+
+    final class Pos { var x: CGFloat = 0; var y: CGFloat = 0 }
+
+    struct Values { var scale: CGFloat = 1; var opacity: Double = 1; var y: CGFloat = 0 }
+
+    func body(content: Content) -> some View {
+        content
+            .keyframeAnimator(initialValue: Values(), trigger: trigger) { view, v in
+                view
+                    .scaleEffect(v.scale)
+                    .opacity(v.opacity)
+                    .offset(y: v.y)
+            } keyframes: { _ in
+                let screen = max(UIScreen.main.bounds.height, 1)
+                let width = max(UIScreen.main.bounds.width, 1)
+                let d = max(0.001, min(max(pos.y - 80, 0) / screen, 1) * 0.3 + min(max(pos.x, 0) / width, 1) * 0.06)
+                KeyframeTrack(\.scale) {
+                    MoveKeyframe(0.86)
+                    LinearKeyframe(0.86, duration: d)
+                    SpringKeyframe(1, duration: 0.55, spring: Spring(response: 0.42, dampingRatio: 0.62))
+                }
+                KeyframeTrack(\.opacity) {
+                    MoveKeyframe(0)
+                    LinearKeyframe(0, duration: d)
+                    LinearKeyframe(1, duration: 0.16)
+                }
+                KeyframeTrack(\.y) {
+                    MoveKeyframe(26)
+                    LinearKeyframe(26, duration: d)
+                    SpringKeyframe(0, duration: 0.55, spring: Spring(response: 0.44, dampingRatio: 0.72))
+                }
+            }
+            .onGeometryChange(for: CGPoint.self) { $0.frame(in: .global).origin } action: { p in
+                pos.x = p.x; pos.y = p.y
+            }
+            .onChange(of: appear.tick) { if !reduceMotion { trigger += 1 } }
+            .onAppear {
+                if !reduceMotion, Date().timeIntervalSince(appear.at) < 0.7 { trigger += 1 }
+            }
+    }
+}
+
+extension View {
+    func popIn() -> some View { modifier(PopIn()) }
 }

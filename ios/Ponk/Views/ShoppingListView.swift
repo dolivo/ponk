@@ -57,6 +57,7 @@ struct ShoppingListView: View {
         List {
             if let d = detail {
                 header(d)
+                    .popIn()
                     .listRowBackground(Color.clear)
                     .listRowInsets(EdgeInsets(top: 8, leading: 14, bottom: 8, trailing: 14))
                 if d.items.isEmpty {
@@ -194,6 +195,7 @@ struct ShoppingListView: View {
         let content = ListRow(entry: e, shelf: e.sku.flatMap { shelves[$0] }, stock: stockQty(e, store: store),
                               onToggle: { Task { await toggle(e) } },
                               onQty: { q in Task { await setQty(e, q) } })
+            .popIn()
         Group {
             if let sku = e.sku {
                 NavigationLink(value: ProductRoute(sku: sku)) { content }

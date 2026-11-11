@@ -85,10 +85,8 @@ struct RootView: View {
     @State private var searchFocus = 0
     /// Je vysunutá klávesnice? Boční menu se pak přesune nahoru, aby nebylo schované pod ní.
     @State private var keyboardUp = false
-    /// Přechod mezi záložkami: odkud se odchází a kterým směrem (dolů v menu = +1, nahoru = −1).
-    @State private var fromTab: AppTab?
-    @State private var direction: CGFloat = 1
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// Kdy se která záložka naposledy objevila – její položky pak postupně vyskočí.
+    @State private var appear: [AppTab: TabAppear] = [:]
 
     private var side: MenuSide { MenuSide(rawValue: menuSide) ?? .right }
 
@@ -158,14 +156,10 @@ struct RootView: View {
         .ponkMinimizingTabBar()
     }
 
-    /// Přepnutí záložky v bočním menu: nejdřív se nová obrazovka bez animace postaví na stranu,
-    /// odkud přijede, a v dalším kroku se animovaně prohodí se starou.
+    /// Přepnutí záložky v bočním menu.
     private func switchTab(to new: AppTab) {
         guard new != tab else { return }
-        let all = AppTab.allCases
-        direction = (all.firstIndex(of: new) ?? 0) > (all.firstIndex(of: tab) ?? 0) ? 1 : -1
-        fromTab = tab
-        Task { @MainActor in tab = new }
+        tab = new
     }
 
     /// Klepnutí na už otevřenou záložku: Hledat otevře klávesnici, ostatní se vrátí na začátek.
@@ -180,17 +174,14 @@ struct RootView: View {
             ForEach(AppTab.allCases, id: \.self) { t in
                 if visited.contains(t) || t == tab {
                     let active = t == tab
-                    let leaving = t == fromTab && !active
                     screen(t)
                         .environment(\.sideMenuSide, side)
+                        .environment(\.tabAppear, appear[t] ?? TabAppear())
                         .id(resets[t, default: 0])
-                        // Přechod ve směru menu: nová obrazovka vyplave zespodu (nebo shora),
-                        // stará se zmenší a rozmaže do pozadí, vše na pružině.
-                        .scaleEffect(active || reduceMotion ? 1 : (leaving ? 0.93 : 1.03))
-                        .offset(y: active || reduceMotion ? 0 : (leaving ? -direction * 36 : direction * 70))
-                        .blur(radius: active || reduceMotion ? 0 : 10)
+                        // obrazovka se jen rychle prolne (horní lišta zůstane klidná),
+                        // pohyb obstarají položky, které postupně vyskočí (PopIn)
                         .opacity(active ? 1 : 0)
-                        .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.46, dampingFraction: 0.84), value: tab)
+                        .animation(.easeOut(duration: 0.16), value: tab)
                         .zIndex(active ? 1 : 0)
                         .allowsHitTesting(active)
                         .accessibilityHidden(t != tab)
@@ -224,25 +215,21 @@ struct RootView: View {
         .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillHideNotification)) { _ in
             keyboardUp = false
         }
-        .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
+        .onChange(of: tab, initial: true) { _, t in
+            visited.insert(t)
+            appear[t] = TabAppear(tick: (appear[t]?.tick ?? 0) + 1, at: .now)
+        }
     }
 }
 
-/// Spodní lišta: obsah záložky při přepnutí pružně vyjede a zaostří se.
+/// Spodní lišta: při každém otevření záložky dá jejím položkám pokyn postupně vyskočit.
 private struct TabEntrance: ViewModifier {
-    @State private var shown = false
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    @State private var appear = TabAppear()
 
     func body(content: Content) -> some View {
         content
-            .opacity(shown ? 1 : 0)
-            .offset(y: shown || reduceMotion ? 0 : 24)
-            .scaleEffect(shown || reduceMotion ? 1 : 0.97)
-            .blur(radius: shown || reduceMotion ? 0 : 6)
-            .onAppear {
-                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.85)) { shown = true }
-            }
-            .onDisappear { shown = false }
+            .environment(\.tabAppear, appear)
+            .onAppear { appear = TabAppear(tick: appear.tick + 1, at: .now) }
     }
 }
 

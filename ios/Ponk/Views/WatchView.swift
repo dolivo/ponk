@@ -20,7 +20,7 @@ struct WatchView: View {
                 }
                 ForEach(items) { item in
                     NavigationLink(value: ProductRoute(sku: item.sku)) {
-                        ProductRow(item: displayItem(item)).padding(.horizontal, -14)
+                        ProductRow(item: displayItem(item)).padding(.horizontal, -14).popIn()
                     }
                     .listRowInsets(EdgeInsets(top: 0, leading: 14, bottom: 0, trailing: 14))
                     .listRowBackground(Color.ponkSurface)

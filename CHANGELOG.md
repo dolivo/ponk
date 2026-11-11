@@ -3,6 +3,12 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.15.0
+- Přechod mezi záložkami bez poskakování: obrazovka i horní lišta se jen rychle prolnou a pohyb
+  obstarají položky. Dlaždice, řádky, kategorie a položky seznamu při otevření záložky pružně
+  vyskočí jedna po druhé, shora dolů a zleva doprava. Při posouvání se nic neanimuje;
+  při zapnutém Omezení pohybu v iOS se položky jen zobrazí.
+
 ## 0.14.0
 - Animované přechody mezi záložkami Katalog, Slevy, Seznam, Hledat a Více. S bočním menu
   nová obrazovka vyplave ve směru pohybu v menu (dolů v menu = zespodu, nahoru = shora)

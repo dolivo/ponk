@@ -117,7 +117,7 @@ struct CategoryBrowser: View {
                 if let data {
                     LazyVGrid(columns: columns, spacing: 1) {
                         ForEach(data.values) { c in
-                            link(for: c)
+                            link(for: c).popIn()
                         }
                     }
                     .padding(.vertical, 1)
