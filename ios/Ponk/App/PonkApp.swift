@@ -85,6 +85,10 @@ struct RootView: View {
     @State private var searchFocus = 0
     /// Je vysunutá klávesnice? Boční menu se pak přesune nahoru, aby nebylo schované pod ní.
     @State private var keyboardUp = false
+    /// Přechod mezi záložkami: odkud se odchází a kterým směrem (dolů v menu = +1, nahoru = −1).
+    @State private var fromTab: AppTab?
+    @State private var direction: CGFloat = 1
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private var side: MenuSide { MenuSide(rawValue: menuSide) ?? .right }
 
@@ -143,15 +147,25 @@ struct RootView: View {
         TabView(selection: Binding(get: { tab }, set: { new in
             if new == tab { reselect(new) } else { tab = new }
         })) {
-            Tab("Katalog", systemImage: "square.grid.2x2", value: AppTab.catalog) { screen(.catalog) }
-            Tab("Slevy", systemImage: "tag", value: AppTab.home) { screen(.home) }
-            Tab("Seznam", systemImage: "checklist", value: AppTab.watch) { screen(.watch) }
+            Tab("Katalog", systemImage: "square.grid.2x2", value: AppTab.catalog) { screen(.catalog).modifier(TabEntrance()) }
+            Tab("Slevy", systemImage: "tag", value: AppTab.home) { screen(.home).modifier(TabEntrance()) }
+            Tab("Seznam", systemImage: "checklist", value: AppTab.watch) { screen(.watch).modifier(TabEntrance()) }
                 .badge(app.meta?.watched_drops ?? 0)
-            Tab("Více", systemImage: "line.3.horizontal", value: AppTab.more) { screen(.more) }
+            Tab("Více", systemImage: "line.3.horizontal", value: AppTab.more) { screen(.more).modifier(TabEntrance()) }
             // V iOS 26 se hledání zobrazí jako samostatné skleněné tlačítko vedle lišty.
-            Tab(value: AppTab.search, role: .search) { screen(.search) }
+            Tab(value: AppTab.search, role: .search) { screen(.search).modifier(TabEntrance()) }
         }
         .ponkMinimizingTabBar()
+    }
+
+    /// Přepnutí záložky v bočním menu: nejdřív se nová obrazovka bez animace postaví na stranu,
+    /// odkud přijede, a v dalším kroku se animovaně prohodí se starou.
+    private func switchTab(to new: AppTab) {
+        guard new != tab else { return }
+        let all = AppTab.allCases
+        direction = (all.firstIndex(of: new) ?? 0) > (all.firstIndex(of: tab) ?? 0) ? 1 : -1
+        fromTab = tab
+        Task { @MainActor in tab = new }
     }
 
     /// Klepnutí na už otevřenou záložku: Hledat otevře klávesnici, ostatní se vrátí na začátek.
@@ -165,20 +179,27 @@ struct RootView: View {
         ZStack {
             ForEach(AppTab.allCases, id: \.self) { t in
                 if visited.contains(t) || t == tab {
+                    let active = t == tab
+                    let leaving = t == fromTab && !active
                     screen(t)
                         .environment(\.sideMenuSide, side)
                         .id(resets[t, default: 0])
-                        .opacity(t == tab ? 1 : 0)
-                        .scaleEffect(t == tab ? 1 : 0.985)
-                        // jemné prolnutí obrazovek jako u systémové lišty
-                        .animation(.easeOut(duration: 0.18), value: tab)
-                        .allowsHitTesting(t == tab)
+                        // Přechod ve směru menu: nová obrazovka vyplave zespodu (nebo shora),
+                        // stará se zmenší a rozmaže do pozadí, vše na pružině.
+                        .scaleEffect(active || reduceMotion ? 1 : (leaving ? 0.93 : 1.03))
+                        .offset(y: active || reduceMotion ? 0 : (leaving ? -direction * 36 : direction * 70))
+                        .blur(radius: active || reduceMotion ? 0 : 10)
+                        .opacity(active ? 1 : 0)
+                        .animation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.46, dampingFraction: 0.84), value: tab)
+                        .zIndex(active ? 1 : 0)
+                        .allowsHitTesting(active)
                         .accessibilityHidden(t != tab)
                 }
             }
         }
         .overlay {
-            SideMenu(selection: $tab, badge: app.meta?.watched_drops ?? 0, side: side) { t in
+            SideMenu(selection: Binding(get: { tab }, set: { switchTab(to: $0) }),
+                     badge: app.meta?.watched_drops ?? 0, side: side) { t in
                 reselect(t)
             }
             .padding(side == .left ? .leading : .trailing, 8)
@@ -204,6 +225,24 @@ struct RootView: View {
             keyboardUp = false
         }
         .onChange(of: tab, initial: true) { _, t in visited.insert(t) }
+    }
+}
+
+/// Spodní lišta: obsah záložky při přepnutí pružně vyjede a zaostří se.
+private struct TabEntrance: ViewModifier {
+    @State private var shown = false
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+    func body(content: Content) -> some View {
+        content
+            .opacity(shown ? 1 : 0)
+            .offset(y: shown || reduceMotion ? 0 : 24)
+            .scaleEffect(shown || reduceMotion ? 1 : 0.97)
+            .blur(radius: shown || reduceMotion ? 0 : 6)
+            .onAppear {
+                withAnimation(reduceMotion ? .easeOut(duration: 0.2) : .spring(response: 0.42, dampingFraction: 0.85)) { shown = true }
+            }
+            .onDisappear { shown = false }
     }
 }
 

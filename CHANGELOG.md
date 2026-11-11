@@ -3,6 +3,12 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.14.0
+- Animované přechody mezi záložkami Katalog, Slevy, Seznam, Hledat a Více. S bočním menu
+  nová obrazovka vyplave ve směru pohybu v menu (dolů v menu = zespodu, nahoru = shora)
+  a stará se zmenší a rozmaže do pozadí, vše na pružině. Se spodní lištou obsah záložky
+  při přepnutí vyjede a zaostří se. Při zapnutém Omezení pohybu v iOS jen jemné prolnutí.
+
 ## 0.13.3
 - Oprava: v užším nákupním seznamu se cena lámala po písmenech a štítek regálu do dvou řádků.
   Cena je teď vedle množství, a když se nevejde, pod ním; regál a sklad se případně dají pod sebe.
