@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.19.0
+- **Kalkulačky materiálu** (Hledat → Kalkulačky materiálu, nebo + v nákupním seznamu):
+  - malování: barva na stěny a strop podle rozměrů místnosti, páska, zakrývací fólie,
+  - dlažba a obklad: krabice s prořezem, lepidlo, spárovačka,
+  - sádrokartonová příčka: desky, CW a UW profily, šrouby, tmel, pásky, izolace,
+  - beton: deska i patky pod sloupky, pytle hotové směsi nebo cement a štěrkopísek.
+- Spotřeby a balení jdou přepsat podle obalu výrobku. Výsledek se jedním klepnutím přidá
+  do nákupního seznamu, každou položku jde dohledat v katalogu.
+
 ## 0.18.0
 - **Porovnání produktů**: až 3 produkty vedle sebe – cena, nejnižší cena za 30 dní, cena za jednotku,
   hodnocení, sklad v mé prodejně, značka, aku platforma, záruka, rozměry a všechny parametry.

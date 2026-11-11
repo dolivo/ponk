@@ -38,6 +38,7 @@ struct ShoppingListView: View {
     @State private var prompt: Prompt?
     @State private var promptText = ""
     @State private var showMap = false
+    @State private var showCalc = false
     @State private var confirmDelete = false
     @State private var tick = 0
 
@@ -117,6 +118,9 @@ struct ShoppingListView: View {
         }
         .confirmationDialog("Smazat seznam „\(detail?.name ?? "")“?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Smazat seznam", role: .destructive) { Task { await deleteList() } }
+        }
+        .sheet(isPresented: $showCalc, onDismiss: { Task { await load() } }) {
+            NavigationStack { CalculatorsView().ponkDestinations() }
         }
         .sheet(isPresented: $showMap) {
             if let d = detail {
@@ -247,7 +251,10 @@ struct ShoppingListView: View {
     @ToolbarContentBuilder
     private var toolbar: some ToolbarContent {
         ToolbarItem(placement: .topBarTrailing) {
-            Button { ask(.addText) } label: { Image(systemName: "plus") }
+            Menu {
+                Button { ask(.addText) } label: { Label("Vlastní položka", systemImage: "text.badge.plus") }
+                Button { showCalc = true } label: { Label("Spočítat materiál", systemImage: "function") }
+            } label: { Image(systemName: "plus") } primaryAction: { ask(.addText) }
                 .accessibilityLabel("Přidat vlastní položku")
         }
         ToolbarItem(placement: .topBarTrailing) {

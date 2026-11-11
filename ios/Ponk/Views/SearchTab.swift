@@ -115,6 +115,15 @@ struct CategoryBrowser: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 12) {
                 OfflineNotice()
+                if cat1 == nil {
+                    NavigationLink {
+                        CalculatorsView()
+                    } label: {
+                        Label("Kalkulačky materiálu", systemImage: "function").font(.ponk(16, .semibold))
+                    }
+                    .ponkGlassButton()
+                    .padding(.horizontal, 14)
+                }
                 if cat1 != nil {
                     NavigationLink(value: ResultsRoute(query: query, title: cat2 ?? cat1 ?? "")) {
                         Label("Zobrazit všechny produkty", systemImage: "square.grid.2x2").font(.ponk(16, .semibold))
