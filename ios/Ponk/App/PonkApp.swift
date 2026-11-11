@@ -79,8 +79,9 @@ struct RootView: View {
     @State private var showSetup = false
     /// Záložky, které už byly otevřené (v bočním režimu zůstávají naživu, aby si držely stav).
     @State private var visited: Set<AppTab> = []
-    /// Opětovné klepnutí na otevřenou záložku ji vrátí na začátek.
-    @State private var resets: [AppTab: Int] = [:]
+    /// Navigace v každé záložce: další klepnutí na otevřenou záložku zavře otevřené detaily
+    /// (bez nového načítání stránky).
+    @State private var paths: [AppTab: NavigationPath] = [:]
     /// Druhé klepnutí na Hledat otevře pole hledání s klávesnicí.
     @State private var searchFocus = 0
     /// Je vysunutá klávesnice? Boční menu se pak přesune nahoru, aby nebylo schované pod ní.
@@ -124,19 +125,19 @@ struct RootView: View {
         switch t {
         case .catalog:
             // Hlavní stránka: všechny položky najednou s hledáním a filtry.
-            NavigationStack {
+            NavigationStack(path: path(.catalog)) {
                 ResultsView(route: ResultsRoute(query: [:], title: "Katalog"), catalog: true)
                     .ponkDestinations()
             }
         case .home:
-            NavigationStack { HomeView().ponkDestinations() }
+            NavigationStack(path: path(.home)) { HomeView().ponkDestinations() }
         case .watch:
             // Nákupní seznamy a hlídané produkty
-            NavigationStack { MyStuffView().ponkDestinations() }
+            NavigationStack(path: path(.watch)) { MyStuffView().ponkDestinations() }
         case .search:
             SearchTab(focusTrigger: searchFocus)
         case .more:
-            NavigationStack { MoreView() }
+            NavigationStack(path: path(.more)) { MoreView() }
         }
     }
 
@@ -162,9 +163,15 @@ struct RootView: View {
         tab = new
     }
 
-    /// Klepnutí na už otevřenou záložku: Hledat otevře klávesnici, ostatní se vrátí na začátek.
+    private func path(_ t: AppTab) -> Binding<NavigationPath> {
+        Binding(get: { paths[t] ?? NavigationPath() }, set: { paths[t] = $0 })
+    }
+
+    /// Klepnutí na už otevřenou záložku: Hledat otevře klávesnici. Ostatní se nenačítají znovu;
+    /// jen když je otevřený detail produktu nebo kategorie, vrátí se zpět na hlavní stránku záložky.
     private func reselect(_ t: AppTab) {
-        if t == .search { searchFocus += 1 } else if side != .bottom { resets[t, default: 0] += 1 }
+        if t == .search { searchFocus += 1; return }
+        if let p = paths[t], !p.isEmpty { paths[t] = NavigationPath() }
     }
 
     /// Svislé menu u okraje obrazovky. Záložky se vytvoří při prvním otevření a pak zůstávají
@@ -177,7 +184,6 @@ struct RootView: View {
                     screen(t)
                         .environment(\.sideMenuSide, side)
                         .environment(\.tabAppear, appear[t] ?? TabAppear())
-                        .id(resets[t, default: 0])
                         // obrazovka se jen rychle prolne (horní lišta zůstane klidná),
                         // pohyb obstarají položky, které postupně vyskočí (PopIn)
                         .opacity(active ? 1 : 0)

@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.15.1
+- Klepnutí na Katalog, Slevy, Seznam nebo Více, když v nich už jsi, stránku znovu nenačítá.
+  Je-li otevřený detail produktu nebo kategorie, jen se vrátí na hlavní stránku záložky.
+
 ## 0.15.0
 - Přechod mezi záložkami bez poskakování: obrazovka i horní lišta se jen rychle prolnou a pohyb
   obstarají položky. Dlaždice, řádky, kategorie a položky seznamu při otevření záložky pružně
