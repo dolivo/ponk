@@ -10,6 +10,8 @@ struct ProductView: View {
     @State private var refreshing = false
     @State private var showWatch = false
     @State private var watchTick = 0
+    @State private var showCompare = false
+    @AppStorage(Compare.key) private var compare = ""
 
     var body: some View {
         ScrollView {
@@ -32,6 +34,28 @@ struct ProductView: View {
                 }
                 .accessibilityLabel("Aktualizovat cenu a sklad teď")
                 .disabled(refreshing)
+            }
+            ToolbarItem(placement: .topBarTrailing) {
+                let inCompare = Compare.list(compare).contains(sku)
+                let n = Compare.list(compare).count
+                Menu {
+                    if n >= 2 || (n >= 1 && !inCompare) {
+                        Button { if !inCompare { compare = Compare.toggled(sku, in: compare) }; showCompare = true } label: {
+                            Label("Porovnat (\(inCompare ? n : n + 1))", systemImage: "square.split.2x1")
+                        }
+                    }
+                    Button { compare = Compare.toggled(sku, in: compare) } label: {
+                        Label(inCompare ? "Odebrat z porovnání" : "Přidat do porovnání",
+                              systemImage: inCompare ? "minus.circle" : "plus.circle")
+                    }
+                } label: {
+                    Image(systemName: inCompare ? "square.split.2x1.fill" : "square.split.2x1")
+                } primaryAction: {
+                    // klepnutí: přidá do porovnání; od dvou produktů rovnou porovná
+                    if !inCompare { compare = Compare.toggled(sku, in: compare) }
+                    if Compare.list(compare).count >= 2 { showCompare = true }
+                }
+                .accessibilityLabel(inCompare ? "V porovnání" : "Přidat do porovnání")
             }
             if let p {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -92,6 +116,7 @@ struct ProductView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .sheet(isPresented: $showCompare) { CompareView() }
         .sheet(isPresented: $showWatch) {
             if let p {
                 WatchSheet(product: p) { watchTick += 1; Task { await load() } }

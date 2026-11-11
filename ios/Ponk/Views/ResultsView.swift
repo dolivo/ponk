@@ -21,6 +21,8 @@ struct ResultsView: View {
     @State private var showSave = false
     @State private var showScanner = false
     @AppStorage(MyPlatforms.key) private var myPlatforms = ""
+    @AppStorage(Compare.key) private var compare = ""
+    @State private var showCompare = false
     @State private var text = ""
     @AppStorage("listMode") private var listMode = false
     /// Pro jaký dotaz (a jaká data) jsou výsledky načtené. Při návratu z detailu produktu
@@ -98,6 +100,7 @@ struct ResultsView: View {
                 .presentationDetents([.height(260)])
         }
         .fullScreenCover(isPresented: $showScanner) { ScannerSheet() }
+        .sheet(isPresented: $showCompare) { CompareView() }
         .modifier(CatalogSearch(enabled: catalog, text: $text, query: $query))
         .task(id: query) {
             // návrat z detailu produktu: výsledky už jsou, nic znovu nenačítat
@@ -133,8 +136,18 @@ struct ResultsView: View {
                         .padding(.horizontal, 4)
                 }
                 .ponkGlassButton()
+                if Compare.list(compare).count >= 2 {
+                    Button { showCompare = true } label: {
+                        Label("\(Compare.list(compare).count)", systemImage: "square.split.2x1")
+                            .font(.ponk(16, .semibold))
+                    }
+                    .ponkGlassButton()
+                    .accessibilityLabel("Porovnat \(Compare.list(compare).count) produkty")
+                    .transition(.scale.combined(with: .opacity))
+                }
             }
             .controlSize(.large)
+            .animation(.snappy, value: compare)
         }
         .padding(.bottom, 10)
     }

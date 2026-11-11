@@ -3,6 +3,13 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.18.0
+- **Porovnání produktů**: až 3 produkty vedle sebe – cena, nejnižší cena za 30 dní, cena za jednotku,
+  hodnocení, sklad v mé prodejně, značka, aku platforma, záruka, rozměry a všechny parametry.
+  Řádky, ve kterých se liší, jsou zvýrazněné (nejlepší hodnota zeleně), přepínač „Jen rozdíly“.
+- Přidání: ikona porovnání v detailu produktu (od dvou produktů rovnou otevře porovnání), nebo
+  podržením dlaždice → Porovnat. V katalogu se u Filtrů objeví tlačítko porovnání.
+
 ## 0.17.0
 - **Moje aku platformy** (Více → Moje aku platformy): vybereš akumulátory, které máš doma
   (Ryobi ONE+, Einhell Power X-Change, Bosch zelený i modrý, Makita LXT, DeWalt, Worx…).

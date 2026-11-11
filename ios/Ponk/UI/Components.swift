@@ -427,10 +427,15 @@ private struct ProductMenu: ViewModifier {
     @Environment(AppModel.self) private var app
     @State private var watched = 0
     @AppStorage("currentList") private var currentList = 0
+    @AppStorage(Compare.key) private var compare = ""
 
     func body(content: Content) -> some View {
         content
             .contextMenu {
+                let inCompare = Compare.list(compare).contains(item.sku)
+                Button { compare = Compare.toggled(item.sku, in: compare); watched += 1 } label: {
+                    Label(inCompare ? "Odebrat z porovnání" : "Porovnat", systemImage: "square.split.2x1")
+                }
                 Button { Task { await addToList() } } label: { Label("Přidat do seznamu", systemImage: "cart.badge.plus") }
                 Button { Task { await watch() } } label: { Label("Hlídat cenu", systemImage: "eye") }
                 Button { UIPasteboard.general.string = item.name } label: { Label("Kopírovat název", systemImage: "doc.on.doc") }
