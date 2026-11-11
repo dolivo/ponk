@@ -454,14 +454,17 @@ private struct ListRow: View {
                 if let n = entry.note {
                     Text(n).font(.ponk(13, relativeTo: .caption)).foregroundStyle(Color.ponkMuted).italic()
                 }
-                HStack(spacing: 8) {
-                    stepper
-                    Spacer(minLength: 4)
-                    if let t = entry.lineTotal {
-                        Text("\(money(t)) Kč")
-                            .font(.ponk(16, .heavy))
-                            .monospacedDigit()
-                            .foregroundStyle(entry.isChecked ? Color.ponkMuted : Color.ponkInk)
+                // cena vedle množství; když se vedle nevejde (užší seznam u bočního menu,
+                // větší písmo), přesune se pod něj – nikdy se neláme po písmenech
+                ViewThatFits(in: .horizontal) {
+                    HStack(spacing: 8) {
+                        stepper
+                        Spacer(minLength: 4)
+                        price
+                    }
+                    VStack(alignment: .leading, spacing: 6) {
+                        stepper
+                        price
                     }
                 }
             }
@@ -470,8 +473,29 @@ private struct ListRow: View {
     }
 
     @ViewBuilder
+    private var price: some View {
+        if let t = entry.lineTotal {
+            Text("\(money(t)) Kč")
+                .font(.ponk(16, .heavy))
+                .monospacedDigit()
+                .lineLimit(1)
+                .fixedSize()
+                .foregroundStyle(entry.isChecked ? Color.ponkMuted : Color.ponkInk)
+        }
+    }
+
+    /// Regál a sklad vedle sebe, a když se nevejdou, pod sebou (štítek regálu se nikdy neláme).
     private var badges: some View {
-        HStack(spacing: 6) {
+        ViewThatFits(in: .horizontal) {
+            HStack(spacing: 6) { badgeItems }
+            VStack(alignment: .leading, spacing: 4) { badgeItems }
+        }
+        .font(.ponk(13, .semibold, relativeTo: .caption))
+    }
+
+    @ViewBuilder
+    private var badgeItems: some View {
+        Group {
             if let s = shelf {
                 Text("Regál \(s.shelf)" + (s.field.isEmpty || s.field == "0" ? "" : ", pole \(s.field)"))
                     .font(.ponk(13, .semibold, relativeTo: .caption))
@@ -480,6 +504,8 @@ private struct ListRow: View {
                     .padding(.vertical, 2)
                     .foregroundStyle(Color.ponkLabelInk)
                     .background(Color.ponkLabel, in: RoundedRectangle(cornerRadius: 2))
+                    .lineLimit(1)
+                    .fixedSize()
             }
             if let p = entry.product {
                 if !p.isListed {
@@ -499,7 +525,8 @@ private struct ListRow: View {
                 }
             }
         }
-        .font(.ponk(13, .semibold, relativeTo: .caption))
+        .lineLimit(1)
+        .fixedSize()
     }
 
     private var stepper: some View {
@@ -520,6 +547,7 @@ private struct ListRow: View {
         .buttonStyle(.borderless)
         .foregroundStyle(Color.ponkInk)
         .background(Color.ponkSurface2, in: Capsule())
+        .fixedSize()
     }
 }
 

@@ -3,6 +3,10 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.13.3
+- Oprava: v užším nákupním seznamu se cena lámala po písmenech a štítek regálu do dvou řádků.
+  Cena je teď vedle množství, a když se nevejde, pod ním; regál a sklad se případně dají pod sebe.
+
 ## 0.13.2
 - Oprava: v nákupním seznamu a hlídaných zasahovalo boční menu do položek (cena, tlačítko Smazat
   po přejetí prstem). Seznam se teď u bočního menu zúží, takže je všechno vedle menu a klikatelné.
