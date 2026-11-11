@@ -252,6 +252,10 @@ struct ProductView: View {
             }
 
             Block(title: "Kde je skladem") { StockList(p: p) }
+            Block(title: "Kdy koupit") {
+                BuyAdviceCard(advice: BuyAdvice(p), watched: p.watch != nil) { showWatch = true }
+            }
+
             Block(title: "Vývoj ceny") { PriceChart(history: p.history, current: p.price) }
             Block(title: "Hodnocení zákazníků") { ReviewsSection(sku: p.sku) }
 

@@ -3,6 +3,13 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.21.0
+- **Kdy koupit** v detailu produktu: „Teď je dobrá chvíle koupit“, „Vyplatí se počkat“ nebo
+  „Cena je stabilní“, s důvody – skutečná sleva, výprodej, dárek k nákupu s koncem akce,
+  nejnižší cena od začátku sledování, za kolik byl produkt k mání dřív, jak často se cena mění,
+  a obvyklé sezónní výprodeje (grily a zahradní nábytek, sekačky, topení, klimatizace,
+  Vánoce, úklid sněhu…). U „počkat“ rovnou tlačítko Hlídat cenu.
+
 ## 0.20.0
 - **Nakupuji na zamčené obrazovce** (živá aktivita): v nákupním seznamu tlačítko „Nakupuji“.
   Na zamčené obrazovce a v Dynamic Islandu je pak další regál po cestě prodejnou, co tam vzít
