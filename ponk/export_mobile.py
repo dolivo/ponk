@@ -149,6 +149,16 @@ def export(src_path, out_dir):
             "server_version": __version__,
             "last_change": dst.execute("SELECT MAX(price_changed_at) FROM products").fetchone()[0] or ""}
     dst.executemany("INSERT INTO info VALUES(?,?)", list(info.items()))
+    # pro widget na ploše telefonu (stahuje jen status.json): největší zlevnění z poslední
+    # kontroly a největší skutečné slevy
+    widget = {
+        "top_drops": [dict(sku=r[0], name=r[1], price=r[2], prev=r[3], pct=r[4], image=r[5]) for r in dst.execute(
+            "SELECT sku, name, price, prev_price, drop_pct, image FROM products WHERE price_changed_at = ? AND drop_pct > 0 "
+            "AND price >= 100 AND COALESCE(active, 1) = 1 ORDER BY drop_pct DESC, rank DESC LIMIT 6", (info["last_change"],))],
+        "top_deals": [dict(sku=r[0], name=r[1], price=r[2], prev=r[3], pct=r[4], image=r[5]) for r in dst.execute(
+            "SELECT sku, name, price, was_price, real_discount, image FROM products WHERE real_discount > 0 AND price >= 100 "
+            "AND rank > 0 AND COALESCE(active, 1) = 1 ORDER BY real_discount DESC, rank DESC LIMIT 6")],
+    }
     dst.commit()
     dst.execute("DETACH DATABASE src")
     dst.execute("VACUUM")
@@ -164,7 +174,7 @@ def export(src_path, out_dir):
     for name, data in (("ponk-mobile.sqlite.xz", xz), ("ponk-mobile.sqlite.deflate", df)):
         open(os.path.join(out_dir, name), "wb").write(data)
         files[name] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-    status = {**{k: v for k, v in info.items() if not k.startswith("home_sections") and k != "platforms"}, "schema": SCHEMA_VERSION, "raw_size": len(raw), "files": files, **counts}
+    status = {**{k: v for k, v in info.items() if not k.startswith("home_sections") and k != "platforms"}, "schema": SCHEMA_VERSION, "raw_size": len(raw), "files": files, **counts, **widget}
     json.dump(status, open(os.path.join(out_dir, "status.json"), "w"), indent=1)
     return status
 

@@ -39,6 +39,8 @@ struct ShoppingListView: View {
     @State private var promptText = ""
     @State private var showMap = false
     @State private var showCalc = false
+    @State private var shopping = false
+    @State private var activityError = false
     @State private var confirmDelete = false
     @State private var tick = 0
 
@@ -108,7 +110,14 @@ struct ShoppingListView: View {
         .ponkBrandToolbar()
         .toolbar { toolbar }
         .refreshable { await load(live: true) }
-        .task { await load() }
+        .task { shopping = ShoppingActivityController.shared.isRunning; await load() }
+        .onReceive(NotificationCenter.default.publisher(for: .ponkListChanged)) { _ in Task { await load() } }
+        .onChange(of: shelves) { _, _ in syncActivity() }
+        .alert("Živou aktivitu nejde spustit", isPresented: $activityError) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text("Zapni pro Ponk živé aktivity v Nastavení iOS → Ponk. Když je aplikace nainstalovaná bez widgetů, živá aktivita není k dispozici.")
+        }
         .onChange(of: currentID) { _, _ in Task { await load() } }
         .sensoryFeedback(.selection, trigger: tick)
         .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
@@ -184,6 +193,23 @@ struct ShoppingListView: View {
                         .ponkGlassButton()
                     }
                 }
+                // živá aktivita: další regál na zamčené obrazovce a v Dynamic Islandu
+                Button {
+                    if shopping {
+                        ShoppingActivityController.shared.end()
+                        shopping = false
+                    } else {
+                        ShoppingActivityController.shared.start(listName: d.name, storeName: app.storeName(d.store),
+                                                                stops: activityStops(d), total: d.items.count)
+                        shopping = ShoppingActivityController.shared.isRunning
+                        if !shopping { activityError = true }
+                    }
+                } label: {
+                    Label(shopping ? "Ukončit nákup na zamčené obrazovce" : "Nakupuji: regály na zamčené obrazovce",
+                          systemImage: shopping ? "lock.open" : "lock.iphone")
+                        .font(.ponk(15, .semibold))
+                }
+                .ponkGlassButton()
             }
         }
     }
@@ -347,11 +373,31 @@ struct ShoppingListView: View {
             let d = try await app.api.get("list/\(currentID)", as: ShoppingListDetail.self)
             detail = d
             error = nil
+            syncActivity()
             await loadLive(d, force: live)
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
         }
+    }
+
+    /// Položky pro živou aktivitu ve stejném pořadí jako trasa prodejnou.
+    private func activityStops(_ d: ShoppingListDetail) -> [ShoppingActivityAttributes.Stop] {
+        routeOrder(d.items.filter { !$0.isChecked }).map { e in
+            let s = e.sku.flatMap { shelves[$0] }
+            return ShoppingActivityAttributes.Stop(id: e.id, title: e.title, shelf: s?.shelf, field: s?.field,
+                                                   qty: "\(qtyText(e.qty)) ks")
+        }
+    }
+
+    /// Po každé změně seznamu (odškrtnutí, nové regály) posune živou aktivitu.
+    private func syncActivity() {
+        guard ShoppingActivityController.shared.isRunning, let d = detail else {
+            shopping = ShoppingActivityController.shared.isRunning
+            return
+        }
+        ShoppingActivityController.shared.update(stops: activityStops(d), total: d.items.count)
+        shopping = ShoppingActivityController.shared.isRunning
     }
 
     /// Regály a aktuální sklad živě z Bauhausu (offline zůstanou data ze stažené databáze).

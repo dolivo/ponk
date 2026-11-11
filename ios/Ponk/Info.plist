@@ -13,6 +13,12 @@
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
 	<key>LSRequiresIPhoneOS</key><true/>
 	<key>CADisableMinimumFrameDurationOnPhone</key><true/>
+	<key>NSSupportsLiveActivities</key><true/>
+	<key>CFBundleURLTypes</key>
+	<array><dict>
+		<key>CFBundleURLName</key><string>cz.ponk.app</string>
+		<key>CFBundleURLSchemes</key><array><string>ponk</string></array>
+	</dict></array>
 	<key>NSCameraUsageDescription</key><string>Kamera slouží ke čtení čárových kódů zboží v prodejně.</string>
 	<key>UILaunchScreen</key>
 	<dict><key>UIColorName</key><string>LaunchBackground</string></dict>

@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.19.0"
+    MARKETING_VERSION: "0.20.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Ponk:
@@ -28,6 +28,32 @@ targets:
         ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
         CODE_SIGNING_ALLOWED: "NO"
         CODE_SIGNING_REQUIRED: "NO"
+    dependencies:
+      - target: PonkWidgets
+        embed: true
+        codeSign: false
+  # Widget na plochu (zlevněno dnes) a živá aktivita „Nakupuji“ na zamčené obrazovce
+  PonkWidgets:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: PonkWidgets
+      - path: Ponk/Shared
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: cz.ponk.app.widgets
+        PRODUCT_NAME: PonkWidgets
+        INFOPLIST_FILE: PonkWidgets/Info.plist
+        GENERATE_INFOPLIST_FILE: NO
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) WIDGET_EXTENSION"
+        APPLICATION_EXTENSION_API_ONLY: "YES"
+        SKIP_INSTALL: "YES"
+        CODE_SIGNING_ALLOWED: "NO"
+        CODE_SIGNING_REQUIRED: "NO"
+    dependencies:
+      - sdk: WidgetKit.framework
+      - sdk: SwiftUI.framework
 schemes:
   Ponk:
     build:

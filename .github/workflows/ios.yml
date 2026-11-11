@@ -61,16 +61,35 @@ jobs:
           ids = ['identifier "cz.ponk.app"'] + ['identifier "rezerva.%02d.%s"' % (i, "x" * 480) for i in range(48)]
           print("=designated => " + " or ".join(ids))
           PY
+          # rozšíření (widgety) se podepisují první, pak celá aplikace
+          for ext in Payload/Ponk.app/PlugIns/*.appex; do
+            [ -d "$ext" ] || continue
+            name=$(basename "$ext" .appex)
+            python3 - "$name" > ext-req.txt <<'PY'
+          import sys
+          ids = ['identifier "cz.ponk.app.widgets"'] + ['identifier "rezerva.%02d.%s"' % (i, "x" * 480) for i in range(48)]
+          print("=designated => " + " or ".join(ids))
+          PY
+            codesign --force --sign - --timestamp=none --requirements "$(cat ext-req.txt)" "$ext"
+          done
           codesign --force --sign - --timestamp=none --requirements "$(cat req.txt)" Payload/Ponk.app
           codesign -dv Payload/Ponk.app 2>&1 | grep -E "Identifier|CodeDirectory|Signature size" || true
           rm -rf Payload/Ponk.app/_CodeSignature
+          for ext in Payload/Ponk.app/PlugIns/*.appex; do
+            [ -d "$ext" ] || continue
+            rm -rf "$ext/_CodeSignature"
+            chmod 755 "$ext/$(basename "$ext" .appex)"
+          done
           chmod 755 Payload/Ponk.app/Ponk
           zip -qry Ponk-${{ steps.ver.outputs.version }}.ipa Payload
+          # záložní verze bez widgetů (kdyby podpis rozšíření v telefonu dělal potíže)
+          rm -rf Payload/Ponk.app/PlugIns
+          zip -qry Ponk-${{ steps.ver.outputs.version }}-bez-widgetu.ipa Payload
 
       - uses: actions/upload-artifact@v4
         with:
           name: Ponk-${{ steps.ver.outputs.version }}-build${{ steps.ver.outputs.build }}
-          path: ios/Ponk-${{ steps.ver.outputs.version }}.ipa
+          path: ios/Ponk-${{ steps.ver.outputs.version }}*.ipa
           retention-days: 30
 
       - name: Při chybě uložit log (pošli ho Claudovi)

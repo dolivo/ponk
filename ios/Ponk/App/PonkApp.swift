@@ -114,6 +114,23 @@ struct RootView: View {
             }
             if phase == .background { DataStore.scheduleBackgroundRefresh() }
         }
+        // odkazy z widgetu a živé aktivity: ponk://product/<kód>, ponk://list
+        .onOpenURL { url in
+            guard url.scheme == "ponk" else { return }
+            switch url.host {
+            case "product":
+                let sku = url.lastPathComponent
+                guard !sku.isEmpty, sku != "/" else { return }
+                tab = .home
+                var p = paths[.home] ?? NavigationPath()
+                p.append(ProductRoute(sku: sku))
+                paths[.home] = p
+            case "list":
+                tab = .watch
+                paths[.watch] = NavigationPath()
+            default: break
+            }
+        }
         .sheet(isPresented: $showSetup) {
             DataSetupView { showSetup = false; Task { await app.loadMeta() } }
                 .interactiveDismissDisabled(!DataStore.shared.hasData)

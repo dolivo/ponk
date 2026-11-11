@@ -3,6 +3,15 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.20.0
+- **Nakupuji na zamčené obrazovce** (živá aktivita): v nákupním seznamu tlačítko „Nakupuji“.
+  Na zamčené obrazovce a v Dynamic Islandu je pak další regál po cestě prodejnou, co tam vzít
+  a kolik zbývá. Tlačítkem „Mám“ položku odškrtneš bez odemykání, seznam se posune na další regál.
+- **Widget na plochu „Zlevněno v Bauhausu“** (malý a střední): největší zlevnění z ranní kontroly
+  cen s fotkou a starou cenou; klepnutím se otevře produkt v Ponku. Data si bere z GitHubu.
+- Odkazy ponk://product/<kód> a ponk://list otevřou produkt nebo nákupní seznam.
+- K verzi je i záložní IPA „bez-widgetu“ pro případ, že by podpis rozšíření v telefonu dělal potíže.
+
 ## 0.19.0
 - **Kalkulačky materiálu** (Hledat → Kalkulačky materiálu, nebo + v nákupním seznamu):
   - malování: barva na stěny a strop podle rozměrů místnosti, páska, zakrývací fólie,
