@@ -7,6 +7,7 @@ struct MoreView: View {
     @AppStorage("font") private var font = PonkFont.barlow.rawValue
     @AppStorage("auto_wifi") private var autoWiFi = true
     @AppStorage("repo") private var repo = ""
+    @AppStorage(MyPlatforms.key) private var myPlatforms = ""
     @AppStorage(Recents.searchesKey) private var recentSearches = ""
     @AppStorage(Recents.viewedKey) private var recentViewed = ""
     @State private var store = DataStore.shared
@@ -31,6 +32,17 @@ struct MoreView: View {
                 Text("Data")
             } footer: {
                 Text("Ceny celého katalogu kontroluje každé ráno kolem 5:20 GitHub. Telefon si nová data stáhne sám po otevření aplikace nebo na pozadí (asi 5 MB). Detail produktu načítá aktuální cenu a sklad přímo z Bauhausu.")
+            }
+
+            Section {
+                NavigationLink {
+                    PlatformsView()
+                } label: {
+                    LabeledContent("Moje aku platformy",
+                                   value: myPlatforms.isEmpty ? "žádné" : "\(MyPlatforms.list(myPlatforms).count)")
+                }
+            } footer: {
+                Text("Vyber akumulátory, které máš (Ryobi ONE+, Einhell Power X-Change…). Katalog pak ukáže nářadí, které k nim pasuje.")
             }
 
             Section {

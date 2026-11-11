@@ -75,6 +75,8 @@ struct Item: Codable, Identifiable, Hashable {
     var last_price: Double? = nil
     /// Počet recenzí zákazníků (rating je průměr 0–100). Ve starších datech chybí.
     var rating_count: Int? = nil
+    /// 1 = aku nářadí bez akumulátoru („tělo“), 0 = sada s akumulátorem (novější data).
+    var body_only: Int? = nil
 
     var id: String { sku }
     var isListed: Bool { active != 0 }
@@ -292,6 +294,8 @@ struct ProductDetail: Codable {
     var safety: [String: [String]]? = nil
     var tiers: [TierPrice]? = nil
     var related: [Item]? = nil
+    var platform: PlatformInfo? = nil
+    var platform_alt: [Item]? = nil
     var alternatives: [Item]? = nil
     var series: [Item]? = nil
     var active: Int? = nil
@@ -443,6 +447,20 @@ struct Promo: Codable, Identifiable, Hashable {
         default: return "info.circle.fill"
         }
     }
+}
+
+/// Akumulátorová platforma produktu (Ryobi ONE+, Einhell Power X-Change…).
+struct PlatformInfo: Codable, Hashable {
+    let id: String
+    let title: String
+    let kind: String?
+    let body: Int?
+}
+
+struct PlatformOption: Codable, Hashable, Identifiable {
+    let id: String
+    let title: String
+    let count: Int
 }
 
 struct ProductDocument: Codable, Hashable {

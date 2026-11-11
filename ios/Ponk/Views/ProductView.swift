@@ -217,6 +217,11 @@ struct ProductView: View {
 
             ProductBadges(p: p).padding(.horizontal, 14)
 
+            if let plat = p.platform {
+                PlatformBlock(platform: plat, alternatives: p.platform_alt ?? [], price: p.price)
+                    .padding(.horizontal, 14)
+            }
+
             if let box = p.box, !box.isEmpty {
                 Block(title: "Obsah balení") { BoxContents(text: box) }
             }

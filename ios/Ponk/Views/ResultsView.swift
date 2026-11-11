@@ -20,6 +20,7 @@ struct ResultsView: View {
     @State private var showSort = false
     @State private var showSave = false
     @State private var showScanner = false
+    @AppStorage(MyPlatforms.key) private var myPlatforms = ""
     @State private var text = ""
     @AppStorage("listMode") private var listMode = false
     /// Pro jaký dotaz (a jaká data) jsou výsledky načtené. Při návratu z detailu produktu
@@ -142,12 +143,22 @@ struct ResultsView: View {
         query.keys.filter { !["q", "sort", "cat1", "page", "exact"].contains($0) }.count
     }
 
+    /// „K mým bateriím“ a „Bez akumulátoru“, když jsou ve Více vybrané aku platformy.
+    private var platformFilters: [QuickFilter] {
+        guard !myPlatforms.isEmpty else { return [] }
+        return [
+            .single(id: "plat", title: "K mým bateriím", key: "plat", value: myPlatforms),
+            .single(id: "body", title: "Bez akumulátoru", key: "body", value: "1"),
+        ]
+    }
+
     private var quickFilters: [QuickFilter] {
         guard catalog else { return [] }
         let store = app.myStore ?? "888"
         return [
             .multi(id: "labelsell_off", title: "Výprodej", key: "label", value: "sell_off"),
             .multi(id: "labelgift", title: "Dárek k nákupu", key: "label", value: "gift"),
+        ] + platformFilters + [
             .single(id: "store", title: "Skladem: \(app.storeName(store))", key: "store", value: store),
             .single(id: "online", title: "Skladem online", key: "online", value: "1"),
             .single(id: "disc", title: "Sleva 30 %+", key: "disc", value: "30"),

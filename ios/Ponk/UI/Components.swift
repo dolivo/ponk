@@ -84,6 +84,7 @@ struct Flags: View {
                 Flag(text: "Zlevněno", color: .ponkGreen, ink: .white)
             }
             if item.labels.contains("only_online") { Flag(text: "Jen online") }
+            if item.body_only == 1 { Flag(text: "Bez aku") }
         }
     }
 }

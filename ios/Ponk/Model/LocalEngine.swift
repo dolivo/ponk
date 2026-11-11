@@ -26,7 +26,8 @@ actor LocalEngine {
     var hasData: Bool { db != nil }
 
     /// Co stažená data obsahují (starší data z GitHubu nemusí mít nové tabulky).
-    private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false; var extras = false }
+    private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false; var extras = false
+        var platforms = false }
     private var caps = Caps()
 
     // MARK: - otevření a příprava dat
@@ -56,7 +57,8 @@ actor LocalEngine {
         let cols = Set(try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String })
         let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
         caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"),
-                    ratingCount: cols.contains("rating_count"), extras: tables.contains("extras") && tables.contains("banners"))
+                    ratingCount: cols.contains("rating_count"), extras: tables.contains("extras") && tables.contains("banners"),
+                    platforms: tables.contains("platforms"))
         db = d
         suggestIndex = nil
         speller = nil
@@ -165,6 +167,7 @@ actor LocalEngine {
         case "search": return try search(query)
         case "suggest": return try suggest(query["q"] ?? "")
         case "items": return ["items": try itemsBySKU(many(query, "skus"))]
+        case "platforms": return ["items": try platformList()]
         case "ean": return ["items": try itemsByEAN(parts.count > 1 ? parts[1] : "")]
         case "storemap":
             guard parts.count > 1, let m = try storeMap(parts[1]) else { throw EngineError.notFound }
@@ -289,6 +292,15 @@ actor LocalEngine {
             w.append("(p.first_seen > ? OR (p.price_changed_at > ? AND p.drop_pct > 0))"); a += [v, v]
         }
         if q["watch"] == "1" { w.append("p.sku IN (SELECT sku FROM u.watch)") }
+        // akumulátorové platformy: „k mým bateriím“ a „jen tělo bez akumulátoru“
+        if caps.platforms {
+            let plats = many(q, "plat")
+            if !plats.isEmpty {
+                w.append("p.sku IN (SELECT sku FROM platforms WHERE platform IN (\(Array(repeating: "?", count: plats.count).joined(separator: ","))))")
+                a += plats
+            }
+            if q["body"] == "1" { w.append("p.sku IN (SELECT sku FROM platforms WHERE body = 1)") }
+        }
         if let v = q["restock_days"].flatMap(Int.init), caps.restock {
             let since = Self.dayFormatter.string(from: Calendar.current.date(byAdding: .day, value: -v, to: Date()) ?? Date())
             if let store = q["store"], !store.isEmpty {
@@ -333,6 +345,7 @@ actor LocalEngine {
     private var itemCols: String {
         Self.baseItemCols + (caps.active ? ", p.active, p.last_price" : ", 1 AS active, NULL AS last_price")
             + (caps.ratingCount ? ", p.rating_count" : ", NULL AS rating_count")
+            + (caps.platforms ? ", (SELECT x.body FROM platforms x WHERE x.sku = p.sku) AS body_only" : ", NULL AS body_only")
     }
 
     private func itemsFor(_ rows: [[String: Any]], store: String?) throws -> [[String: Any]] {
@@ -672,7 +685,43 @@ actor LocalEngine {
             """, [sku])
         if let w = try db.query("SELECT sku, added, added_price, target FROM u.watch WHERE sku = ?", [sku]).first { p["watch"] = w }
         if caps.extras { try addExtras(&p, sku: sku, db: db) }
+        if caps.platforms { try addPlatform(&p, sku: sku, db: db) }
         return p
+    }
+
+    /// Platformy s počtem produktů (pro výběr „moje aku platformy“).
+    private func platformList() throws -> [[String: Any]] {
+        guard caps.platforms, let raw = info("platforms"),
+              let list = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [[String: Any]] else { return [] }
+        var counts: [String: Int] = [:]
+        for r in try data().query("""
+            SELECT x.platform AS platform, COUNT(*) AS n FROM platforms x JOIN products p ON p.sku = x.sku
+            WHERE p.price IS NOT NULL GROUP BY x.platform
+            """) {
+            if let id = r["platform"] as? String { counts[id] = r["n"] as? Int ?? 0 }
+        }
+        return list.compactMap { e in
+            guard let id = e["id"] as? String, let n = counts[id], n > 0 else { return nil }
+            return ["id": id, "title": e["title"] as? String ?? id, "count": n]
+        }
+    }
+
+    /// Platforma produktu a k tělu sady s akumulátorem (nebo k sadě samotné tělo).
+    private func addPlatform(_ p: inout [String: Any], sku: String, db: SQLiteDB) throws {
+        guard let x = try db.query("SELECT platform, kind, body, model FROM platforms WHERE sku = ?", [sku]).first,
+              let id = x["platform"] as? String else { return }
+        var title = id
+        if let raw = info("platforms"), let list = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [[String: Any]],
+           let e = list.first(where: { $0["id"] as? String == id }) { title = e["title"] as? String ?? id }
+        let body = x["body"] as? Int
+        p["platform"] = ["id": id, "title": title, "kind": x["kind"] ?? NSNull(), "body": body ?? NSNull()] as [String: Any]
+        guard let body, let model = x["model"] as? String else { return }
+        let rows = try db.query("""
+            SELECT \(itemCols) FROM products p JOIN platforms x ON x.sku = p.sku
+            WHERE x.platform = ? AND x.model = ? AND x.body = ? AND p.sku <> ? AND p.price IS NOT NULL
+            ORDER BY p.price LIMIT 6
+            """, [id, model, 1 - body, sku])
+        p["platform_alt"] = try itemsFor(rows, store: setting("store"))
     }
 
     /// Akce výrobců (dárky, cashback…), obsah balení, dokumenty, výrobce, bezpečnost,

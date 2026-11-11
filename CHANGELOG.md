@@ -3,6 +3,14 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.17.0
+- **Moje aku platformy** (Více → Moje aku platformy): vybereš akumulátory, které máš doma
+  (Ryobi ONE+, Einhell Power X-Change, Bosch zelený i modrý, Makita LXT, DeWalt, Worx…).
+- V katalogu přibudou rychlé filtry „K mým bateriím“ a „Bez akumulátoru“, na dlaždicích štítek „Bez aku“.
+- V detailu aku nářadí: platforma, jestli pasuje k tvým akumulátorům, a stejné nářadí bez akumulátoru
+  (kolik ušetříš, když baterii už máš) nebo naopak se sadou akumulátoru a nabíječky.
+- Platformy se poznají ze značky, názvu a obsahu balení; v datech od příštího denního běhu.
+
 ## 0.16.0
 - **Skener do prodejny** (ikona čárového kódu v Katalogu i v Hledat): namíříš na EAN na zboží
   nebo cenovce a hned vidíš cenu, jestli je opravdu výhodná (skutečná sleva proti nejnižší ceně

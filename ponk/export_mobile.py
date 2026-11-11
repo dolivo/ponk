@@ -19,6 +19,7 @@ from datetime import datetime, timezone
 
 from . import __version__
 from .db import fold
+from . import platforms
 
 SCHEMA_VERSION = 4
 
@@ -45,6 +46,7 @@ CREATE TABLE vocab(word TEXT PRIMARY KEY, display TEXT, freq INTEGER) WITHOUT RO
 CREATE TABLE banners(id INTEGER PRIMARY KEY, label TEXT, text TEXT, link TEXT, image TEXT, background TEXT,
   kind TEXT, gift TEXT, start TEXT, "end" TEXT, store_only INTEGER, value INTEGER);
 CREATE TABLE extras(sku TEXT PRIMARY KEY, data TEXT) WITHOUT ROWID;
+CREATE TABLE platforms(sku TEXT PRIMARY KEY, platform TEXT, kind TEXT, body INTEGER, model TEXT) WITHOUT ROWID;
 """
 
 
@@ -115,12 +117,26 @@ def export(src_path, out_dir):
         dst.execute("INSERT INTO extras SELECT e.* FROM src.extras e JOIN products p ON p.sku = e.sku")
     except sqlite3.OperationalError:
         pass  # starší databáze bez akcí
+    # akumulátorové platformy (Ryobi ONE+, Einhell Power X-Change…), tělo vs. sada
+    boxes = {}
+    try:
+        for sku, data in dst.execute("SELECT sku, data FROM extras"):
+            boxes[sku] = json.loads(data).get("box")
+    except sqlite3.OperationalError:
+        pass
+    plat_rows = []
+    for sku, name, brand, cat3 in dst.execute("SELECT sku, name, brand, cat3 FROM products"):
+        r = platforms.classify(brand, name, cat3, boxes.get(sku))
+        if r:
+            plat_rows.append((sku, *r))
+    dst.executemany("INSERT INTO platforms VALUES(?,?,?,?,?)", plat_rows)
+    dst.execute("CREATE INDEX platforms_model ON platforms(platform, model)")
     dst.execute("INSERT INTO stores SELECT * FROM src.stores")
     last = dst.execute("SELECT finished FROM src.runs WHERE status='ok' ORDER BY id DESC LIMIT 1").fetchone()
     generated = datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
     counts = {t: dst.execute(f"SELECT COUNT(*) FROM {t}").fetchone()[0]
               for t in ("products", "price_history", "stock", "product_attrs", "restock", "store_map_labels", "vocab",
-                        "banners", "extras")}
+                        "banners", "extras", "platforms")}
     sections_path = os.path.join(os.path.dirname(__file__), "home_sections.json")
     sections = open(sections_path, encoding="utf-8").read() if os.path.exists(sections_path) else "[]"
     info = {"schema": str(SCHEMA_VERSION), "generated_at": generated, "last_run": last[0] if last else "",
@@ -128,6 +144,8 @@ def export(src_path, out_dir):
             # novější aplikace (0.12+) čtou sekce s akcemi; starší by neznámý štítek ignorovaly
             "home_sections_v2": json.dumps(json.load(open(os.path.join(os.path.dirname(__file__), "home_sections_v2.json"),
                                                         encoding="utf-8")), ensure_ascii=False),
+            "platforms": json.dumps([{"id": pid, "title": title} for pid, title in platforms.TITLES.items()],
+                                    ensure_ascii=False),
             "server_version": __version__,
             "last_change": dst.execute("SELECT MAX(price_changed_at) FROM products").fetchone()[0] or ""}
     dst.executemany("INSERT INTO info VALUES(?,?)", list(info.items()))
@@ -146,7 +164,7 @@ def export(src_path, out_dir):
     for name, data in (("ponk-mobile.sqlite.xz", xz), ("ponk-mobile.sqlite.deflate", df)):
         open(os.path.join(out_dir, name), "wb").write(data)
         files[name] = {"size": len(data), "sha256": hashlib.sha256(data).hexdigest()}
-    status = {**{k: v for k, v in info.items() if not k.startswith("home_sections")}, "schema": SCHEMA_VERSION, "raw_size": len(raw), "files": files, **counts}
+    status = {**{k: v for k, v in info.items() if not k.startswith("home_sections") and k != "platforms"}, "schema": SCHEMA_VERSION, "raw_size": len(raw), "files": files, **counts}
     json.dump(status, open(os.path.join(out_dir, "status.json"), "w"), indent=1)
     return status
 
