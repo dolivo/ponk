@@ -101,6 +101,7 @@ struct RootView: View {
             if DataStore.shared.hasData {
                 await app.loadMeta()
                 if await DataStore.shared.update(force: false) { await app.loadMeta() }
+                await PurchaseSync.refresh(api: app.api) // koupené produkty z účtu Bauhaus
             } else {
                 try? await Task.sleep(for: .seconds(1.5)) // až po úvodní animaci
                 showSetup = true

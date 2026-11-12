@@ -295,6 +295,7 @@ struct ProductDetail: Codable {
     var tiers: [TierPrice]? = nil
     var related: [Item]? = nil
     var platform: PlatformInfo? = nil
+    var purchases: [PurchaseInfo]? = nil
     var platform_alt: [Item]? = nil
     var alternatives: [Item]? = nil
     var series: [Item]? = nil
@@ -448,6 +449,14 @@ struct Promo: Codable, Identifiable, Hashable {
         default: return "info.circle.fill"
         }
     }
+}
+
+/// Produkt koupený přes účet Bauhaus (objednávka nebo rezervace).
+struct PurchaseInfo: Codable, Hashable {
+    let day: String?
+    let kind: String?
+    let ref: String?
+    let qty: Double?
 }
 
 /// Akumulátorová platforma produktu (Ryobi ONE+, Einhell Power X-Change…).

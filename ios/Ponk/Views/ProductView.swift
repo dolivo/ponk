@@ -222,6 +222,16 @@ struct ProductView: View {
                     .padding(.horizontal, 14)
             }
 
+            if let buy = p.purchases?.first {
+                Label("Už jsi koupil \(shortDay(buy.day)) \(String((buy.day ?? "").prefix(4)))"
+                      + (buy.qty.map { ", \(qtyText($0)) ks" } ?? "")
+                      + (buy.kind == "reservation" ? " (rezervace \(buy.ref ?? ""))" : " (objednávka \(buy.ref ?? ""))")
+                      + ((p.purchases?.count ?? 0) > 1 ? " a dřív" : ""),
+                      systemImage: "bag.fill")
+                    .font(.ponk(14, .semibold)).foregroundStyle(Color.ponkGreen)
+                    .padding(.horizontal, 14)
+            }
+
             if let w = p.watch {
                 Text(watchText(w))
                     .font(.ponk(14)).foregroundStyle(Color.ponkMuted)

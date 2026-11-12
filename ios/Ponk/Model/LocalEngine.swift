@@ -45,6 +45,7 @@ actor LocalEngine {
             CREATE TABLE IF NOT EXISTS list_items(id INTEGER PRIMARY KEY, list_id INTEGER, sku TEXT, text TEXT,
                 qty REAL DEFAULT 1, checked INTEGER DEFAULT 0, note TEXT, added TEXT, added_price REAL);
             CREATE INDEX IF NOT EXISTS list_items_list ON list_items(list_id);
+            CREATE TABLE IF NOT EXISTS purchases(sku TEXT, day TEXT, kind TEXT, ref TEXT, qty REAL, PRIMARY KEY(sku, ref));
             INSERT INTO lists(name, created) SELECT 'Nákupní seznam', date('now') WHERE NOT EXISTS (SELECT 1 FROM lists);
             """)
         try? user.exec("ALTER TABLE watch ADD COLUMN notified_restock TEXT")
@@ -147,6 +148,15 @@ actor LocalEngine {
         case (_, "lists"), (_, "list"), (_, "listitem"), ("GET", "inlists"), (_, "listshare"):
             return try shoppingList(method: method, parts: parts, query: query, body: body)
         case ("GET", "saved"): return ["items": try savedItems()]
+        case ("POST", "purchases"):
+            // koupené produkty z účtu Bauhaus (objednávky a rezervace); nahradí předchozí stav
+            try user.run("DELETE FROM \(t("purchases"))")
+            for r in body?["items"] as? [[String: Any]] ?? [] {
+                guard let sku = r["sku"] as? String else { continue }
+                try user.run("INSERT OR REPLACE INTO \(t("purchases")) VALUES(?, ?, ?, ?, ?)",
+                             [sku, r["day"] as? String, r["kind"] as? String, r["ref"] as? String, num(r["qty"])])
+            }
+            return ["ok": true]
         case ("POST", "saved"):
             let q = body?["query"] as? [String: Any] ?? [:]
             let json = String(data: try JSONSerialization.data(withJSONObject: q), encoding: .utf8) ?? "{}"
@@ -687,6 +697,7 @@ actor LocalEngine {
         if let w = try db.query("SELECT sku, added, added_price, target FROM u.watch WHERE sku = ?", [sku]).first { p["watch"] = w }
         if caps.extras { try addExtras(&p, sku: sku, db: db) }
         if caps.platforms { try addPlatform(&p, sku: sku, db: db) }
+        p["purchases"] = (try? db.query("SELECT day, kind, ref, qty FROM u.purchases WHERE sku = ? ORDER BY day DESC LIMIT 5", [sku])) ?? []
         return p
     }
 

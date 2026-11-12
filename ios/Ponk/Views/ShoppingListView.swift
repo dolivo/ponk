@@ -45,6 +45,13 @@ struct ShoppingListView: View {
     @State private var pasteFailed = false
     @State private var importNote: String?
     @State private var inbox = ShareInbox.shared
+    @State private var handoff: Handoff?
+    @State private var handoffBusy = false
+    @State private var handoffURL: URL?
+    @State private var handoffNote: String?
+    @State private var loginFor: Handoff?
+
+    enum Handoff: String, Identifiable { case reserve, cart; var id: String { rawValue } }
     @State private var activityError = false
     @State private var confirmDelete = false
     @State private var tick = 0
@@ -175,6 +182,23 @@ struct ShoppingListView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+        .confirmationDialog(handoff == .reserve ? "Rezervovat na prodejně" : "Vložit do košíku na bauhaus.cz",
+                            isPresented: Binding(get: { handoff != nil }, set: { if !$0 { handoff = nil } }),
+                            titleVisibility: .visible, presenting: handoff) { h in
+            Button(h == .reserve ? "Vložit do rezervace" : "Vložit do košíku") { Task { await runHandoff(h) } }
+            Button("Zrušit", role: .cancel) {}
+        } message: { h in
+            Text(handoffMessage(h))
+        }
+        .sheet(item: $handoffURL, onDismiss: { Task { await PurchaseSync.refresh(api: app.api) } }) { url in
+            SafariSheet(url: url).ignoresSafeArea()
+        }
+        .sheet(item: $loginFor) { h in
+            BauhausLoginSheet { handoff = h }
+        }
+        .alert("Rezervace a košík", isPresented: Binding(get: { handoffNote != nil && handoffURL == nil }, set: { if !$0 { handoffNote = nil } })) {
+            Button("OK", role: .cancel) { handoffNote = nil }
+        } message: { Text(handoffNote ?? "") }
         .sheet(isPresented: $showCalc, onDismiss: { Task { await load() } }) {
             NavigationStack { CalculatorsView().ponkDestinations() }
         }
@@ -240,6 +264,21 @@ struct ShoppingListView: View {
                         .ponkGlassButton()
                     }
                 }
+                // účet Bauhaus: rezervace na prodejně nebo košík; potvrzení a platba na oficiálním webu
+                GlassGroup(spacing: 10) {
+                    HStack(spacing: 10) {
+                        Button { askHandoff(.reserve) } label: {
+                            Label("Rezervovat", systemImage: "storefront").font(.ponk(15, .semibold))
+                        }
+                        .ponkGlassButton()
+                        Button { askHandoff(.cart) } label: {
+                            Label("Do košíku", systemImage: "cart").font(.ponk(15, .semibold))
+                        }
+                        .ponkGlassButton()
+                        if handoffBusy { ProgressView() }
+                    }
+                }
+                .disabled(handoffBusy)
                 // živá aktivita: další regál na zamčené obrazovce a v Dynamic Islandu
                 Button {
                     if shopping {
@@ -458,6 +497,54 @@ struct ShoppingListView: View {
             withAnimation(.snappy) { importNote = nil }
         } catch {
             self.error = error.localizedDescription
+        }
+    }
+
+    // MARK: - rezervace a košík na bauhaus.cz
+
+    private func handoffItems() -> [(sku: String, qty: Double)] {
+        (detail?.items ?? []).filter { !$0.isChecked }.compactMap { e in e.sku.map { ($0, e.qty) } }
+    }
+
+    private func handoffMessage(_ h: Handoff) -> String {
+        let n = handoffItems().count
+        let skipped = (detail?.items ?? []).filter { !$0.isChecked && $0.sku == nil }.count
+        var s: String
+        if h == .reserve {
+            s = "\(n) produktů se vloží do rezervace na prodejně \(app.storeName(detail?.store)). "
+            s += "Rezervaci zkontroluješ a potvrdíš na stránce Bauhausu, platí se až při vyzvednutí."
+        } else {
+            s = "\(n) produktů se vloží do košíku na bauhaus.cz. "
+            s += "Dopravu, platbu a objednávku dokončíš na oficiální stránce Bauhausu."
+            if !BauhausAccount.shared.isLoggedIn { s += " Bez přihlášení jako host." }
+        }
+        if skipped > 0 { s += " Vlastní položky (\(skipped)) se přeskočí." }
+        return s
+    }
+
+    private func askHandoff(_ h: Handoff) {
+        if h == .reserve, !BauhausAccount.shared.isLoggedIn { loginFor = h; return }
+        handoff = h
+    }
+
+    private func runHandoff(_ h: Handoff) async {
+        guard let d = detail else { return }
+        handoffBusy = true
+        defer { handoffBusy = false }
+        do {
+            let items = handoffItems()
+            let r: BauhausAccount.BulkResult
+            if h == .reserve {
+                r = try await BauhausAccount.shared.reserveHandoff(items, store: d.store)
+            } else {
+                r = try await BauhausAccount.shared.cartHandoff(items)
+            }
+            if !r.failed.isEmpty {
+                handoffNote = "Některé položky nešly přidat:\n" + r.failed.joined(separator: "\n")
+            }
+            handoffURL = r.url
+        } catch {
+            handoffNote = error.localizedDescription
         }
     }
 

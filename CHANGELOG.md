@@ -3,6 +3,17 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.23.0
+- **Účet BAUHAUS** (Více → Účet BAUHAUS): přihlášení probíhá přímo na stránce Bauhausu v aplikaci
+  (i přes Google/Facebook), Ponk heslo nevidí a přihlášení drží jen v Klíčence telefonu.
+- **Moje objednávky a rezervace**: přehled s produkty, stavem a cenou; v detailu produktu
+  „Už jsi koupil 12. 10. 2026 (objednávka …)“.
+- **Rezervovat na prodejně** z nákupního seznamu: produkty se vloží do sekce Rezervace na
+  prodejně seznamu a otevře se oficiální košík Bauhausu, kde rezervaci potvrdíš (platí se při vyzvednutí).
+- **Do košíku**: celý nákupní seznam se vloží do košíku na bauhaus.cz (i bez přihlášení jako host)
+  a otevře se oficiální pokladna kosik.bauhaus.cz; doprava, platba a objednávka se dokončí tam.
+- Položky, které nejdou přidat (nedostupné, málo kusů), Ponk vypíše.
+
 ## 0.22.0
 - **Sdílení nákupního seznamu odkazem**: Sdílet teď posílá kromě čitelného seznamu i odkaz
   pro aplikaci Ponk. Druhý telefon ho otevře klepnutím (nebo Seznam → menu seznamů →

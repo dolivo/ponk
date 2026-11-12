@@ -34,6 +34,8 @@ struct MoreView: View {
                 Text("Ceny celého katalogu kontroluje každé ráno kolem 5:20 GitHub. Telefon si nová data stáhne sám po otevření aplikace nebo na pozadí (asi 5 MB). Detail produktu načítá aktuální cenu a sklad přímo z Bauhausu.")
             }
 
+            AccountSection()
+
             Section {
                 NavigationLink {
                     PlatformsView()
