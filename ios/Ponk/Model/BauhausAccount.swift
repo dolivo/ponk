@@ -18,6 +18,8 @@ final class BauhausAccount {
     private(set) var email: String?
     private(set) var customerID: Int?
     var lastError: String?
+    /// Okno přihlášení se otevírá z jednoho místa (kořen aplikace), aby se hned nezavřelo.
+    var loginRequested = false
 
     var isLoggedIn: Bool { token != nil }
 
@@ -40,6 +42,16 @@ final class BauhausAccount {
         if let refresh { Keychain.set(refresh, "bauhaus.refresh") }
         if let user { apply(user) }
         await loadMe()
+    }
+
+    /// Záložní přihlášení e-mailem a heslem (heslo jde jen na bauhaus.cz, Ponk ho neukládá).
+    func login(email: String, password: String) async throws {
+        let r = try await Self.request("POST", "/api/user/login", body: ["username": email, "password": password])
+        guard (r["code"] as? Int) == 200, let t = r["result"] as? String else {
+            throw AccountError.message(Self.errorText(r) ?? "Přihlášení se nepovedlo. Zkontroluj e-mail a heslo.")
+        }
+        let refresh = (r["meta"] as? [String: Any])?["refreshToken"] as? String
+        await adopt(token: t, refresh: refresh, user: nil)
     }
 
     func logout() {

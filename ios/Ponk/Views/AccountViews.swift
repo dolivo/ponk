@@ -9,10 +9,69 @@ import WebKit
 struct BauhausLoginSheet: View {
     @Environment(\.dismiss) private var dismiss
     @State private var done = false
+    @State private var mode = 0
+    @State private var email = ""
+    @State private var password = ""
+    @State private var busy = false
+    @State private var error: String?
     var onLogin: () -> Void = {}
 
     var body: some View {
         NavigationStack {
+            Group {
+                if mode == 0 { web } else { form }
+            }
+            .safeAreaInset(edge: .top, spacing: 0) {
+                VStack(spacing: 6) {
+                    Picker("Způsob", selection: $mode) {
+                        Text("Na webu Bauhausu").tag(0)
+                        Text("E-mail a heslo").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    Text(mode == 0 ? "Přihlas se na stránce Bauhausu (i přes Google nebo Facebook). Ponk si převezme jen přihlášení, heslo nevidí."
+                                   : "Heslo se pošle jen na bauhaus.cz a Ponk ho neukládá. Přes Google nebo Facebook použij přihlášení na webu.")
+                        .font(.ponk(13))
+                        .foregroundStyle(Color.ponkMuted)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                }
+                .padding(.horizontal, 14).padding(.vertical, 8)
+                .background(Color.ponkPage)
+            }
+            .navigationTitle("Účet BAUHAUS")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) { Button("Zavřít") { dismiss() } }
+            }
+        }
+    }
+
+    private var form: some View {
+        Form {
+            TextField("E-mail", text: $email)
+                .textContentType(.username).keyboardType(.emailAddress)
+                .textInputAutocapitalization(.never).autocorrectionDisabled()
+            SecureField("Heslo", text: $password).textContentType(.password)
+            if let error { Text(error).foregroundStyle(Color.ponkRedDeep) }
+            Button {
+                Task {
+                    busy = true
+                    defer { busy = false }
+                    do {
+                        try await BauhausAccount.shared.login(email: email, password: password)
+                        onLogin()
+                        dismiss()
+                    } catch {
+                        self.error = error.localizedDescription
+                    }
+                }
+            } label: {
+                HStack { Text("Přihlásit"); if busy { Spacer(); ProgressView() } }
+            }
+            .disabled(email.isEmpty || password.isEmpty || busy)
+        }
+    }
+
+    private var web: some View {
             BauhausLoginWeb { token, refresh, user in
                 guard !done else { return }
                 done = true
@@ -23,20 +82,6 @@ struct BauhausLoginSheet: View {
                 }
             }
             .ignoresSafeArea(edges: .bottom)
-            .safeAreaInset(edge: .top, spacing: 0) {
-                Text("Přihlas se na stránce Bauhausu. Ponk si převezme jen přihlášení, heslo nevidí.")
-                    .font(.ponk(14))
-                    .foregroundStyle(Color.ponkMuted)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(.horizontal, 14).padding(.vertical, 8)
-                    .background(Color.ponkPage)
-            }
-            .navigationTitle("Účet BAUHAUS")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) { Button("Zavřít") { dismiss() } }
-            }
-        }
     }
 }
 
@@ -77,8 +122,11 @@ private struct BauhausLoginWeb: UIViewRepresentable {
         /// Web ukládá přihlášení do localStorage (localForage „shop/user/…“).
         private func poll() {
             let js = """
-            (function(){try{return JSON.stringify({t:localStorage.getItem('shop/user/current-token'),
-            r:localStorage.getItem('shop/user/current-refresh-token'),u:localStorage.getItem('shop/user/current-user')})}catch(e){return null}})()
+            (function(){try{var o={};for(var i=0;i<localStorage.length;i++){var k=localStorage.key(i);
+            if(/user\\/current-token$/.test(k))o.t=localStorage.getItem(k);
+            if(/user\\/current-refresh-token$/.test(k))o.r=localStorage.getItem(k);
+            if(/user\\/current-user$/.test(k))o.u=localStorage.getItem(k);}
+            return JSON.stringify(o)}catch(e){return null}})()
             """
             web?.evaluateJavaScript(js) { [weak self] result, _ in
                 guard let self, let s = result as? String,
@@ -123,7 +171,6 @@ extension URL: @retroactive Identifiable {
 
 struct AccountSection: View {
     @State private var account = BauhausAccount.shared
-    @State private var showLogin = false
 
     var body: some View {
         Section {
@@ -135,14 +182,13 @@ struct AccountSection: View {
                 NavigationLink { OrdersView() } label: { Label("Moje objednávky a rezervace", systemImage: "shippingbox") }
                 Button(role: .destructive) { account.logout() } label: { Label("Odhlásit", systemImage: "rectangle.portrait.and.arrow.right") }
             } else {
-                Button { showLogin = true } label: { Label("Přihlásit se k účtu BAUHAUS", systemImage: "person.crop.circle") }
+                Button { account.loginRequested = true } label: { Label("Přihlásit se k účtu BAUHAUS", systemImage: "person.crop.circle") }
             }
         } header: {
             Text("Účet BAUHAUS")
         } footer: {
             Text("Přihlášení probíhá na stránce Bauhausu, Ponk heslo nevidí a přihlášení drží jen v Klíčence telefonu. Pak uvidíš objednávky a rezervace a nákupní seznam půjde rezervovat na prodejně.")
         }
-        .sheet(isPresented: $showLogin) { BauhausLoginSheet() }
     }
 }
 

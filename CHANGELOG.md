@@ -3,6 +3,11 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.23.1
+- Oprava: okno přihlášení k účtu BAUHAUS jen problikne a zavře se. Teď se otevírá z kořene aplikace.
+- Přihlášení na webu najde přihlášení i pod jiným názvem úložiště; nově jde přihlásit i e-mailem
+  a heslem přímo v Ponku (heslo jde jen na bauhaus.cz, neukládá se).
+
 ## 0.23.0
 - **Účet BAUHAUS** (Více → Účet BAUHAUS): přihlášení probíhá přímo na stránce Bauhausu v aplikaci
   (i přes Google/Facebook), Ponk heslo nevidí a přihlášení drží jen v Klíčence telefonu.

@@ -139,6 +139,10 @@ struct RootView: View {
             default: break
             }
         }
+        .sheet(isPresented: Binding(get: { BauhausAccount.shared.loginRequested },
+                                    set: { BauhausAccount.shared.loginRequested = $0 })) {
+            BauhausLoginSheet()
+        }
         .sheet(isPresented: $showSetup) {
             DataSetupView { showSetup = false; Task { await app.loadMeta() } }
                 .interactiveDismissDisabled(!DataStore.shared.hasData)
