@@ -365,6 +365,7 @@ struct ShoppingListInfo: Codable, Identifiable, Hashable {
     let store: String?
     let count: Int
     let open: Int
+    var share_id: String? = nil
 }
 
 struct ListEntry: Codable, Identifiable, Hashable {

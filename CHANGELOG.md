@@ -3,6 +3,13 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.22.0
+- **Sdílení nákupního seznamu odkazem**: Sdílet teď posílá kromě čitelného seznamu i odkaz
+  pro aplikaci Ponk. Druhý telefon ho otevře klepnutím (nebo Seznam → menu seznamů →
+  „Vložit sdílený seznam“ ze schránky) a seznam se načte.
+- Stejný seznam se při dalším posílání slučuje: přibudou nové položky, odškrtnuté zůstanou
+  odškrtnuté, nic se nesmaže. Bez serveru, celý seznam je přímo v odkazu.
+
 ## 0.21.0
 - **Kdy koupit** v detailu produktu: „Teď je dobrá chvíle koupit“, „Vyplatí se počkat“ nebo
   „Cena je stabilní“, s důvody – skutečná sleva, výprodej, dárek k nákupu s koncem akce,

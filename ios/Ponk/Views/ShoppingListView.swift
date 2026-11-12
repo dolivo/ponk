@@ -40,6 +40,11 @@ struct ShoppingListView: View {
     @State private var showMap = false
     @State private var showCalc = false
     @State private var shopping = false
+    @State private var shareURL: URL?
+    @State private var showPaste = false
+    @State private var pasteFailed = false
+    @State private var importNote: String?
+    @State private var inbox = ShareInbox.shared
     @State private var activityError = false
     @State private var confirmDelete = false
     @State private var tick = 0
@@ -127,6 +132,48 @@ struct ShoppingListView: View {
         }
         .confirmationDialog("Smazat seznam „\(detail?.name ?? "")“?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Smazat seznam", role: .destructive) { Task { await deleteList() } }
+        }
+        .alert("Načíst sdílený seznam?", isPresented: Binding(get: { inbox.pending != nil }, set: { if !$0 { inbox.pending = nil } })) {
+            Button("Načíst") {
+                if let p = inbox.pending { Task { await importShared(p) } }
+                inbox.pending = nil
+            }
+            Button("Zrušit", role: .cancel) { inbox.pending = nil }
+        } message: {
+            if let p = inbox.pending {
+                Text("„\(p.n)“, \(p.i.count) položek. Když už tenhle seznam máš, položky se sloučí a nic se nesmaže.")
+            }
+        }
+        .sheet(isPresented: $showPaste) {
+            VStack(spacing: 16) {
+                Text("Vložit sdílený seznam").font(.ponk(20, .heavy))
+                Text("Zkopíruj zprávu se seznamem (podrž ji → Kopírovat) a klepni na Vložit.")
+                    .font(.ponk(15)).foregroundStyle(Color.ponkMuted).multilineTextAlignment(.center)
+                PasteButton(payloadType: String.self) { strings in
+                    if let p = ListShare.find(in: strings.joined(separator: "\n")) {
+                        showPaste = false
+                        inbox.pending = p
+                    } else {
+                        pasteFailed = true
+                    }
+                }
+                .buttonBorderShape(.capsule)
+                .tint(Color.ponkRed)
+                if pasteFailed {
+                    Text("Ve schránce není odkaz na seznam z Ponku.").font(.ponk(14)).foregroundStyle(Color.ponkRedDeep)
+                }
+            }
+            .padding(24)
+            .presentationDetents([.height(260)])
+        }
+        .overlay(alignment: .top) {
+            if let importNote {
+                Label(importNote, systemImage: "checkmark.circle.fill")
+                    .font(.ponk(15, .semibold))
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .ponkGlassCapsule(tint: Color.ponkGreen.opacity(0.3))
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
         }
         .sheet(isPresented: $showCalc, onDismiss: { Task { await load() } }) {
             NavigationStack { CalculatorsView().ponkDestinations() }
@@ -296,6 +343,7 @@ struct ShoppingListView: View {
                         }
                     }
                     Button { ask(.newList) } label: { Label("Nový seznam", systemImage: "plus.rectangle.on.rectangle") }
+                    Button { showPaste = true } label: { Label("Vložit sdílený seznam", systemImage: "doc.on.clipboard") }
                 }
                 Section("Prodejna") {
                     Picker("Prodejna", selection: Binding(get: { detail?.store ?? "" }, set: { v in Task { await setStore(v) } })) {
@@ -374,8 +422,40 @@ struct ShoppingListView: View {
             detail = d
             error = nil
             syncActivity()
+            shareURL = await makeShareURL(d.id)
             await loadLive(d, force: live)
         } catch is CancellationError {
+        } catch {
+            self.error = error.localizedDescription
+        }
+    }
+
+    private struct ShareExport: Codable {
+        let sid: String
+        let name: String
+        let store: String?
+        let items: [ShareItem]
+        struct ShareItem: Codable { let sku: String?; let text: String?; let qty: Double; let checked: Int }
+    }
+
+    /// Odkaz ponk://import?d=… s celým seznamem (posílá se ve zprávě spolu s textem).
+    private func makeShareURL(_ id: Int) async -> URL? {
+        guard let ex = try? await app.api.get("listshare/\(id)", as: ShareExport.self) else { return nil }
+        return ListShare.url(ListShare.Payload(sid: ex.sid, n: ex.name, s: ex.store,
+                                               i: ex.items.map { .init(sku: $0.sku, text: $0.text, qty: $0.qty, checked: $0.checked) }))
+    }
+
+    /// Načte sdílený seznam: sloučí ho se stejným seznamem, nebo založí nový.
+    private func importShared(_ p: ListShare.Payload) async {
+        let items: [[String: Any]] = p.i.map { ["sku": $0.sku ?? NSNull(), "text": $0.text ?? NSNull(), "qty": $0.qty, "checked": $0.checked] }
+        do {
+            try await app.api.send("POST", "listshare", body: ["sid": p.sid, "name": p.n, "store": p.s ?? NSNull(), "items": items])
+            lists = try await app.api.get("lists", as: ListResponse<ShoppingListInfo>.self).items
+            if let l = lists.first(where: { $0.share_id == p.sid }) ?? lists.last(where: { $0.name == p.n }) { currentID = l.id }
+            await load()
+            withAnimation(.snappy) { importNote = "Seznam „\(p.n)“ načten" }
+            try? await Task.sleep(for: .seconds(2))
+            withAnimation(.snappy) { importNote = nil }
         } catch {
             self.error = error.localizedDescription
         }
@@ -464,6 +544,9 @@ struct ShoppingListView: View {
             lines.append(line)
         }
         lines += ["", "Celkem: \(money(d.open_total)) Kč"]
+        if let shareURL {
+            lines += ["", "Otevřít v aplikaci Ponk (seznam se sloučí):", shareURL.absoluteString]
+        }
         return lines.joined(separator: "\n")
     }
 }

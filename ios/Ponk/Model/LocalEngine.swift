@@ -48,6 +48,7 @@ actor LocalEngine {
             INSERT INTO lists(name, created) SELECT 'Nákupní seznam', date('now') WHERE NOT EXISTS (SELECT 1 FROM lists);
             """)
         try? user.exec("ALTER TABLE watch ADD COLUMN notified_restock TEXT")
+        try? user.exec("ALTER TABLE lists ADD COLUMN share_id TEXT")
         user.close()
         guard FileManager.default.fileExists(atPath: dataPath) else { return }
         let d = try SQLiteDB(path: dataPath)
@@ -143,7 +144,7 @@ actor LocalEngine {
         case ("DELETE", "watch"):
             try user.run("DELETE FROM \(t("watch")) WHERE sku = ?", [parts.count > 1 ? parts[1] : ""])
             return ["ok": true]
-        case (_, "lists"), (_, "list"), (_, "listitem"), ("GET", "inlists"):
+        case (_, "lists"), (_, "list"), (_, "listitem"), ("GET", "inlists"), (_, "listshare"):
             return try shoppingList(method: method, parts: parts, query: query, body: body)
         case ("GET", "saved"): return ["items": try savedItems()]
         case ("POST", "saved"):
@@ -820,7 +821,7 @@ actor LocalEngine {
         switch (method, parts[0]) {
         case ("GET", "lists"):
             let rows = try user.query("""
-                SELECT l.id, l.name, l.store, COUNT(i.id) AS count, COALESCE(SUM(i.checked = 0), 0) AS open
+                SELECT l.id, l.name, l.store, l.share_id, COUNT(i.id) AS count, COALESCE(SUM(i.checked = 0), 0) AS open
                 FROM \(L) l LEFT JOIN \(I) i ON i.list_id = l.id GROUP BY l.id ORDER BY l.id
                 """)
             return ["items": rows]
@@ -839,6 +840,58 @@ actor LocalEngine {
             try user.run("DELETE FROM \(L) WHERE id = ?", [id])
             try user.run("INSERT INTO \(L)(name, created) SELECT 'Nákupní seznam', ? WHERE NOT EXISTS (SELECT 1 FROM \(L))", [Self.today()])
             return ["ok": true]
+        case ("GET", "listshare"):
+            // seznam ke sdílení odkazem; sdílený seznam má trvalé id, aby se u druhého slučoval
+            guard let id, let list = try user.query("SELECT id, name, store, share_id FROM \(L) WHERE id = ?", [id]).first else {
+                throw EngineError.notFound
+            }
+            var sid = list["share_id"] as? String ?? ""
+            if sid.isEmpty {
+                sid = UUID().uuidString
+                try user.run("UPDATE \(L) SET share_id = ? WHERE id = ?", [sid, id])
+            }
+            let items = try user.query("SELECT sku, text, qty, checked FROM \(I) WHERE list_id = ? ORDER BY id", [id])
+            return ["sid": sid, "name": list["name"] ?? "Seznam", "store": list["store"] ?? NSNull(), "items": items]
+        case ("POST", "listshare"):
+            // načtení sdíleného seznamu: sloučí se se stejným seznamem (podle id), jinak vznikne nový;
+            // nic se nemaže, odškrtnuté zůstane odškrtnuté a množství se vezme větší
+            let sid = body?["sid"] as? String ?? UUID().uuidString
+            let name = (body?["name"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "Sdílený seznam"
+            var listID = try user.scalar("SELECT id FROM \(L) WHERE share_id = ?", [sid]) as? Int
+            let isNew = listID == nil
+            if listID == nil {
+                try user.run("INSERT INTO \(L)(name, created, store, share_id) VALUES(?, ?, ?, ?)",
+                             [name, Self.today(), body?["store"] as? String, sid])
+                listID = try user.scalar("SELECT MAX(id) FROM \(L)") as? Int
+            }
+            guard let lid = listID else { throw EngineError.notFound }
+            var added = 0, updated = 0
+            for item in body?["items"] as? [[String: Any]] ?? [] {
+                let sku = (item["sku"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                let text = (item["text"] as? String).flatMap { $0.isEmpty ? nil : $0 }
+                guard sku != nil || text != nil else { continue }
+                let qty = num(item["qty"]) ?? 1
+                let checked = (item["checked"] as? Int ?? 0) != 0 || (item["checked"] as? Bool ?? false)
+                let existing: [String: Any]?
+                if let sku {
+                    existing = try user.query("SELECT id, qty, checked FROM \(I) WHERE list_id = ? AND sku = ? LIMIT 1", [lid, sku]).first
+                } else {
+                    existing = try user.query("SELECT id, qty, checked FROM \(I) WHERE list_id = ? AND sku IS NULL AND text = ? LIMIT 1", [lid, text]).first
+                }
+                if let e = existing, let eid = e["id"] as? Int {
+                    let q = max(num(e["qty"]) ?? 1, qty)
+                    let c = ((e["checked"] as? Int ?? 0) != 0) || checked
+                    if q != (num(e["qty"]) ?? 1) || c != ((e["checked"] as? Int ?? 0) != 0) { updated += 1 }
+                    try user.run("UPDATE \(I) SET qty = ?, checked = ? WHERE id = ?", [q, c ? 1 : 0, eid])
+                } else {
+                    var price: Any? = nil
+                    if let sku, let db { price = try db.scalar("SELECT price FROM products WHERE sku = ?", [sku]) }
+                    try user.run("INSERT INTO \(I)(list_id, sku, text, qty, checked, added, added_price) VALUES(?, ?, ?, ?, ?, ?, ?)",
+                                 [lid, sku, text, qty, checked ? 1 : 0, Self.today(), price])
+                    added += 1
+                }
+            }
+            return ["id": lid, "name": name, "added": added, "updated": updated, "new": isNew]
         case ("GET", "inlists"):
             let rows = try user.query("""
                 SELECT l.id AS list_id, l.name, i.qty, i.checked FROM \(I) i JOIN \(L) l ON l.id = i.list_id WHERE i.sku = ?

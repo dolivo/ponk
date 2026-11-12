@@ -128,6 +128,13 @@ struct RootView: View {
             case "list":
                 tab = .watch
                 paths[.watch] = NavigationPath()
+            case "import":
+                // sdílený nákupní seznam: otevře Seznam a zeptá se, jestli ho načíst
+                guard let p = ListShare.decode(url) else { return }
+                UserDefaults.standard.set(0, forKey: "myStuffSection")
+                tab = .watch
+                paths[.watch] = NavigationPath()
+                ShareInbox.shared.pending = p
             default: break
             }
         }
