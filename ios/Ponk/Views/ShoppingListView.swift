@@ -68,7 +68,8 @@ struct ShoppingListView: View {
         }
     }
 
-    var body: some View {
+    // Tělo je rozdělené na části, jinak ho překladač nestihne zkontrolovat.
+    private var listCore: some View {
         List {
             if let d = detail {
                 header(d)
@@ -121,6 +122,10 @@ struct ShoppingListView: View {
         .navigationTitle(detail?.name ?? "Nákupní seznam")
         .ponkBrandToolbar()
         .toolbar { toolbar }
+    }
+
+    private var withLifecycle: some View {
+        listCore
         .refreshable { await load(live: true) }
         .task { shopping = ShoppingActivityController.shared.isRunning; await load() }
         .onReceive(NotificationCenter.default.publisher(for: .ponkListChanged)) { _ in Task { await load() } }
@@ -140,6 +145,10 @@ struct ShoppingListView: View {
         .confirmationDialog("Smazat seznam „\(detail?.name ?? "")“?", isPresented: $confirmDelete, titleVisibility: .visible) {
             Button("Smazat seznam", role: .destructive) { Task { await deleteList() } }
         }
+    }
+
+    private var withSharing: some View {
+        withLifecycle
         .alert("Načíst sdílený seznam?", isPresented: Binding(get: { inbox.pending != nil }, set: { if !$0 { inbox.pending = nil } })) {
             Button("Načíst") {
                 if let p = inbox.pending { Task { await importShared(p) } }
@@ -182,6 +191,10 @@ struct ShoppingListView: View {
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
         }
+    }
+
+    private var withHandoff: some View {
+        withSharing
         .confirmationDialog(handoff == .reserve ? "Rezervovat na prodejně" : "Vložit do košíku na bauhaus.cz",
                             isPresented: Binding(get: { handoff != nil }, set: { if !$0 { handoff = nil } }),
                             titleVisibility: .visible, presenting: handoff) { h in
@@ -199,6 +212,10 @@ struct ShoppingListView: View {
         .alert("Rezervace a košík", isPresented: Binding(get: { handoffNote != nil && handoffURL == nil }, set: { if !$0 { handoffNote = nil } })) {
             Button("OK", role: .cancel) { handoffNote = nil }
         } message: { Text(handoffNote ?? "") }
+    }
+
+    var body: some View {
+        withHandoff
         .sheet(isPresented: $showCalc, onDismiss: { Task { await load() } }) {
             NavigationStack { CalculatorsView().ponkDestinations() }
         }
