@@ -1,0 +1,129 @@
+{
+ "schema": 4,
+ "generated_at": "2026-11-14T11:06:45Z",
+ "last_run": "2026-11-14T12:06:39",
+ "first_day": "2026-10-02",
+ "server_version": "0.23.1",
+ "last_change": "2026-11-14",
+ "raw_size": 74788864,
+ "files": {
+  "ponk-mobile.sqlite.xz": {
+   "size": 9340848,
+   "sha256": "0ffba651f72196f132f13644a964c015bc78d72968eebe0e913be669c98f5e63"
+  },
+  "ponk-mobile.sqlite.deflate": {
+   "size": 15994254,
+   "sha256": "a67e3576b1dd54a6bf78ce9cc2f2dc55dd821eeaeb3c366ce04be8d7c0488e05"
+  }
+ },
+ "products": 96907,
+ "price_history": 101150,
+ "stock": 394384,
+ "product_attrs": 467201,
+ "restock": 19888,
+ "store_map_labels": 444,
+ "vocab": 24149,
+ "banners": 34,
+ "extras": 91383,
+ "platforms": 1128,
+ "top_drops": [
+  {
+   "sku": "25783553",
+   "name": "Bosch Akumul\u00e1tor PBA",
+   "price": 999.0,
+   "prev": 1290.0,
+   "pct": 22.6,
+   "image": "/4/8/487034_p_img.webp"
+  },
+  {
+   "sku": "32523670",
+   "name": "Bosch Professional Aku \u00fahlov\u00e1 bruska GWS 18V-8",
+   "price": 1689.0,
+   "prev": 1899.0,
+   "pct": 11.1,
+   "image": "/4/0/407052_p_img.webp"
+  },
+  {
+   "sku": "33431651",
+   "name": "Narex Sada \u00fahlov\u00fdch brusek DOUBLE EBU 230/125",
+   "price": 3990.0,
+   "prev": 4450.0,
+   "pct": 10.3,
+   "image": "/4/3/433571_p_img.webp"
+  },
+  {
+   "sku": "11404519",
+   "name": "Craftomat Sada vrtac\u00edch korunek",
+   "price": 655.0,
+   "prev": 729.0000000000001,
+   "pct": 10.2,
+   "image": "/6/2/62968_p_img.webp"
+  },
+  {
+   "sku": "11141102",
+   "name": "Wolfcraft V\u00e1le\u010dkov\u00e1 podp\u011bra",
+   "price": 1290.0,
+   "prev": 1388.0,
+   "pct": 7.1,
+   "image": "/1/0/106612_p_img.webp"
+  },
+  {
+   "sku": "27512665",
+   "name": "Makita Aku okru\u017en\u00ed pila DSS610Z",
+   "price": 3735.0000000000005,
+   "prev": 3990.0,
+   "pct": 6.4,
+   "image": "/2/1/210101_p_img.webp"
+  }
+ ],
+ "top_deals": [
+  {
+   "sku": "21607882",
+   "name": "Black+Decker N\u00e1hradn\u00ed n\u016f\u017e A6307",
+   "price": 259.0,
+   "prev": null,
+   "pct": 95,
+   "image": "/8/0/80381_p_img.webp"
+  },
+  {
+   "sku": "30244160",
+   "name": "Kalviva Soma Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279858_p_img.webp"
+  },
+  {
+   "sku": "30280924",
+   "name": "Kalviva Volvo Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279841_p_img.webp"
+  },
+  {
+   "sku": "27096150",
+   "name": "Obklad Polaris Dark",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139123_p_img.webp"
+  },
+  {
+   "sku": "27097719",
+   "name": "Obklad Polaris Light",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139133_p_img.webp"
+  },
+  {
+   "sku": "27092583",
+   "name": "Obklad Polaris Hexagon Mix",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139134_p_img.webp"
+  }
+ ]
+}
