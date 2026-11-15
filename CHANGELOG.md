@@ -3,6 +3,16 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.24.0
+- **Nový úvod záložky Hledat**: nahoře karty „Teď v sezóně“ (např. Vánoce) a „Pokračuj“
+  (naposledy procházená kategorie), pod nimi rychlé volby Kalkulačky, Moje aku, Dárky k nákupu
+  a Výprodej. Hlavní oddělení jsou dlaždice s barevnou ikonou, počtem produktů a třemi největšími
+  podkategoriemi; malé akční výběry (Dušičky, Úklid sněhu…) jsou zvlášť v „Sezóna a akce“.
+- **Nová stránka kategorie**: velký nadpis, tlačítko „Všech N“, pás „Nejlepší slevy tady“ a
+  přehledný seznam podkategorií s fotkou, počtem a hlavními druhy.
+- Fotky kategorií se berou od nejlépe hodnocených produktů, ne od náhodného (konec čističe odpadu
+  u Koupelny a čísla „0“ u Železářství).
+
 ## 0.23.1
 - Oprava: okno přihlášení k účtu BAUHAUS jen problikne a zavře se. Teď se otevírá z kořene aplikace.
 - Přihlášení na webu najde přihlášení i pod jiným názvem úložiště; nově jde přihlásit i e-mailem

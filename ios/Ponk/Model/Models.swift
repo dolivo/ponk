@@ -187,12 +187,17 @@ struct CategoryValue: Codable, Hashable, Identifiable {
     let value: String
     let count: Int
     let image: String?
+    /// fotky nejlépe hodnocených produktů a největší podkategorie (novější aplikace)
+    var images: [String]? = nil
+    var subs: [String]? = nil
     var id: String { value }
 }
 
 struct CategoriesResponse: Codable {
     let level: String
     let values: [CategoryValue]
+    var total: Int? = nil
+    var discounted: Int? = nil
 }
 
 struct SuggestProduct: Codable, Hashable, Identifiable {

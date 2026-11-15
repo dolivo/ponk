@@ -563,16 +563,44 @@ actor LocalEngine {
 
     // MARK: - kategorie, našeptávač
 
+    /// Kategorie dané úrovně seřazené podle počtu produktů. U každé: fotky nejlépe
+    /// hodnocených produktů (místo náhodné), tři největší podkategorie a kolik je v ní slev.
     private func categories(_ q: [String: String]) throws -> [String: Any] {
         let db = try data()
         let c1 = q["cat1"], c2 = q["cat2"]
+        var level = "cat1", filter = "1 = 1"
+        var child: String? = "cat2"
+        var args: [Any?] = []
         if let c1, let c2 {
-            return ["level": "cat3", "values": try db.query("SELECT cat3 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 = ? AND cat2 = ? AND cat3 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1, c2])]
+            level = "cat3"; child = nil; filter = "cat1 = ? AND cat2 = ?"; args = [c1, c2]
+        } else if let c1 {
+            level = "cat2"; child = "cat3"; filter = "cat1 = ?"; args = [c1]
         }
-        if let c1 {
-            return ["level": "cat2", "values": try db.query("SELECT cat2 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 = ? AND cat2 IS NOT NULL GROUP BY 1 ORDER BY 1", [c1])]
+        let base = "price IS NOT NULL AND \(filter) AND \(level) IS NOT NULL"
+        var values = try db.query("SELECT \(level) AS value, COUNT(*) AS count FROM products WHERE \(base) GROUP BY 1 ORDER BY 2 DESC", args)
+        var images: [String: [String]] = [:]
+        for r in try db.query("""
+            SELECT value, image FROM (SELECT \(level) AS value, image,
+              ROW_NUMBER() OVER (PARTITION BY \(level) ORDER BY rank DESC, sku) AS rn
+              FROM products WHERE \(base) AND image IS NOT NULL) WHERE rn <= 3
+            """, args) {
+            if let v = r["value"] as? String, let img = r["image"] as? String { images[v, default: []].append(img) }
         }
-        return ["level": "cat1", "values": try db.query("SELECT cat1 AS value, COUNT(*) AS count, MIN(image) AS image FROM products WHERE price IS NOT NULL AND cat1 IS NOT NULL GROUP BY 1 ORDER BY 2 DESC")]
+        var subs: [String: [String]] = [:]
+        if let child {
+            for r in try db.query("SELECT \(level) AS value, \(child) AS sub, COUNT(*) AS n FROM products WHERE \(base) AND \(child) IS NOT NULL GROUP BY 1, 2 ORDER BY 3 DESC", args) {
+                if let v = r["value"] as? String, let sub = r["sub"] as? String, (subs[v]?.count ?? 0) < 3 { subs[v, default: []].append(sub) }
+            }
+        }
+        for k in values.indices {
+            guard let v = values[k]["value"] as? String else { continue }
+            values[k]["image"] = images[v]?.first ?? NSNull()
+            values[k]["images"] = images[v] ?? []
+            values[k]["subs"] = subs[v] ?? []
+        }
+        let total = try db.scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND \(filter)", args) as? Int ?? 0
+        let discounted = try db.scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND COALESCE(real_discount, 0) > 0 AND \(filter)", args) as? Int ?? 0
+        return ["level": level, "values": values, "total": total, "discounted": discounted]
     }
 
     private struct SuggestIndex {
