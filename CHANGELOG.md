@@ -3,6 +3,22 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.24.1
+Jen zrychlení – funkce ani vzhled se nemění.
+- **Hledání** už neprochází databázi řádek po řádku: texty všech produktů jsou v jednom bloku
+  paměti a slovo se v něm hledá systémovou funkcí `memmem` (ručně laděný assembler s vektorovými
+  instrukcemi procesoru). Hledání „vrtačka“ 87 → 5 ms, s překlepem 254 → 54 ms, našeptávač 42 → 5–10 ms.
+- **Nové indexy** pro řazení a filtry (katalog, slevy, novinky, kategorie, parametry): stránka
+  katalogu 34 → 5 ms, úvod 313 → 27 ms, přehled kategorií 302 → 2 ms.
+- **Filtry a počty** se v rámci jedněch dat pamatují (filtry podle prodejny 502 → 8 ms napodruhé).
+- Hlídané produkty, uložená hledání a úvodní údaje se čtou od malé tabulky (16 → 2 ms, 54 → 2 ms, 18 → 0,4 ms).
+- Odpovědi se převádějí na data pro obrazovku mimo hlavní vlákno, dlaždice produktů se při
+  překreslení nepočítají znovu, když se produkt nezměnil.
+- Příprava dat po stažení je skoro dvakrát rychlejší (3,5 → 1,9 s). Po aktualizaci aplikace se
+  už stažená data jednou doplní o nové indexy (pár sekund při prvním spuštění).
+- Čísla jsou z měření na počítači nad skutečnými daty (70 dotazů, celkem 4,5 s → 0,55 s); výsledky
+  jsou stejné, jen ve filtrech se značky a kategorie se stejným počtem produktů řadí podle abecedy.
+
 ## 0.24.0
 - **Nový úvod záložky Hledat**: nahoře karty „Teď v sezóně“ (např. Vánoce) a „Pokračuj“
   (naposledy procházená kategorie), pod nimi rychlé volby Kalkulačky, Moje aku, Dárky k nákupu

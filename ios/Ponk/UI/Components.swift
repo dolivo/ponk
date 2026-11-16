@@ -199,8 +199,11 @@ struct Stars: View {
     }
 }
 
-struct ProductTile: View {
+struct ProductTile: View, Equatable {
     let item: Item
+
+    /// Stejný produkt = stejná dlaždice; SwiftUI ji pak při překreslení rodiče nepočítá znovu.
+    nonisolated static func == (a: ProductTile, b: ProductTile) -> Bool { a.item == b.item }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
@@ -225,8 +228,10 @@ struct ProductTile: View {
     }
 }
 
-struct ProductRow: View {
+struct ProductRow: View, Equatable {
     let item: Item
+
+    nonisolated static func == (a: ProductRow, b: ProductRow) -> Bool { a.item == b.item }
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
@@ -262,7 +267,7 @@ struct Shelf: View {
             if list {
                 LazyVStack(spacing: 1) {
                     ForEach(items) { item in
-                        NavigationLink(value: ProductRoute(sku: item.sku)) { ProductRow(item: item) }
+                        NavigationLink(value: ProductRoute(sku: item.sku)) { ProductRow(item: item).equatable() }
                             .buttonStyle(.plain)
                             .productMenu(item)
                             .popIn()
@@ -273,7 +278,7 @@ struct Shelf: View {
             } else {
                 LazyVGrid(columns: columns, spacing: 1) {
                     ForEach(items) { item in
-                        NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item) }
+                        NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item).equatable() }
                             .buttonStyle(.plain)
                             .productMenu(item)
                             .popIn()
@@ -296,7 +301,7 @@ struct Rail: View {
             // obyčejný HStack + fixedSize: všechny dlaždice v řadě mají stejnou výšku
             HStack(spacing: 1) {
                 ForEach(items) { item in
-                    NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item) }
+                    NavigationLink(value: ProductRoute(sku: item.sku)) { ProductTile(item: item).equatable() }
                         .buttonStyle(.plain)
                         .productMenu(item)
                         .frame(width: 172)

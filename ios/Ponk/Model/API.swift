@@ -29,6 +29,11 @@ final class PonkAPI {
         if path == "sync" {
             return try decoder.decode(T.self, from: JSONEncoder().encode(store.status))
         }
+        // Běžné odpovědi (hledání, úvod, seznamy) se převedou na typy už v jádru, mimo hlavní vlákno.
+        // Jen meta a detail produktu se tady ještě doplňují (stav stahování, živá data z bauhaus.cz).
+        if path != "meta", !path.hasPrefix("product/") {
+            return try await store.engine.handleDecoded(T.self, path: path, query: query)
+        }
         var data = try await store.engine.handleJSON(method: "GET", path: path, query: query, body: nil)
         if path == "meta", var dict = try JSONSerialization.jsonObject(with: data) as? [String: Any] {
             dict["sync"] = try JSONSerialization.jsonObject(with: JSONEncoder().encode(store.status))

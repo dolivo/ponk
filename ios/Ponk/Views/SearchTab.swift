@@ -397,7 +397,8 @@ struct CategoryBrowser: View {
             data = try await app.api.get("categories", query, as: CategoriesResponse.self)
             error = nil
             if cat1 != nil {
-                let r = try? await app.api.get("search", query.merging(["disc": "1", "sort": "discount"]) { $1 }, as: SearchResponse.self)
+                // filtry tu nejsou potřeba (facets=0), jen prvních pár produktů
+                let r = try? await app.api.get("search", query.merging(["disc": "1", "sort": "discount", "facets": "0"]) { $1 }, as: SearchResponse.self)
                 deals = Array((r?.items ?? []).prefix(12))
             }
         } catch is CancellationError {

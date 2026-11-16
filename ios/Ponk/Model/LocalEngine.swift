@@ -1,4 +1,5 @@
 import Foundation
+import SQLite3
 
 /// Data v telefonu: stažená databáze (ceny, sklady, historie) + vlastní databáze
 /// uživatele (hlídané, uložená hledání, nastavení). Odpovídá stejnými JSON strukturami
@@ -27,8 +28,34 @@ actor LocalEngine {
 
     /// Co stažená data obsahují (starší data z GitHubu nemusí mít nové tabulky).
     private struct Caps { var active = false; var restock = false; var maps = false; var ratingCount = false; var extras = false
-        var platforms = false }
+        var platforms = false; var psearch = false }
     private var caps = Caps()
+
+    /// Vyhledávací texty v paměti (načtou se při prvním hledání) a co je právě v pomocné tabulce temp.hits.
+    private var searchIndex: SearchIndex?
+    private var hitsKey: String?
+    private var lastMatch: (key: String, rows: ContiguousArray<Int32>, counts: [UInt8]?)?
+    /// Výsledky, které se mezi staženími dat nemění: počty produktů pro filtr, kategorie, názvy parametrů.
+    private var countCache: [String: Int] = [:]
+    private var facetsCache: [String: [String: Any]] = [:]
+    private var categoriesCache: [String: [String: Any]] = [:]
+    private var attrLabels: [String: String]?
+    private var platformDefs: [[String: Any]]?
+    private var itemColsSQL = ""
+
+    private func resetCaches() {
+        suggestIndex = nil
+        speller = nil
+        resolved = [:]
+        searchIndex = nil
+        hitsKey = nil
+        lastMatch = nil
+        countCache = [:]
+        facetsCache = [:]
+        categoriesCache = [:]
+        attrLabels = nil
+        platformDefs = nil
+    }
 
     // MARK: - otevření a příprava dat
 
@@ -55,55 +82,127 @@ actor LocalEngine {
         let d = try SQLiteDB(path: dataPath)
         // Rychlejší čtení: větší mezipaměť stránek, dočasné tabulky v paměti, soubor mapovaný do paměti.
         try? d.exec("PRAGMA cache_size = -16000; PRAGMA temp_store = MEMORY; PRAGMA mmap_size = 268435456;")
+        // Data stažená starší verzí aplikace: jednorázově doplní nové indexy a vyhledávací tabulku.
+        try Self.upgrade(d)
         try d.run("ATTACH DATABASE ? AS u", [userPath])
         let cols = Set(try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String })
         let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
         caps = Caps(active: cols.contains("active"), restock: tables.contains("restock"), maps: tables.contains("store_maps"),
                     ratingCount: cols.contains("rating_count"), extras: tables.contains("extras") && tables.contains("banners"),
-                    platforms: tables.contains("platforms"))
+                    platforms: tables.contains("platforms"), psearch: tables.contains("psearch"))
+        try d.exec("CREATE TEMP TABLE IF NOT EXISTS hits(id INTEGER PRIMARY KEY, n INTEGER)")
         db = d
-        suggestIndex = nil
-        speller = nil
-        resolved = [:]
+        resetCaches()
+        itemColsSQL = Self.baseItemCols + (caps.active ? ", p.active, p.last_price" : ", 1 AS active, NULL AS last_price")
+            + (caps.ratingCount ? ", p.rating_count" : ", NULL AS rating_count")
+            + (caps.platforms ? ", (SELECT x.body FROM platforms x WHERE x.sku = p.sku) AS body_only" : ", NULL AS body_only")
     }
 
     func closeData() {
         db?.close()
         db = nil
-        suggestIndex = nil
-        speller = nil
-        resolved = [:]
+        resetCaches()
     }
 
-    /// Po stažení: doplní vyhledávací sloupec a indexy (v souboru nejsou kvůli velikosti).
+    /// Verze přípravy dat v telefonu (PRAGMA user_version). Starší data se při otevření doplní.
+    private static let preparedVersion = 2
+
+    /// Po stažení: doplní vyhledávací texty a indexy (v souboru nejsou kvůli velikosti).
     static func prepareDownloaded(path: String) throws {
         let d = try SQLiteDB(path: path)
         defer { d.close() }
+        // Soubor se teprve připravuje (při chybě se stáhne znovu), takže není potřeba žurnál ani fsync.
+        try? d.exec("PRAGMA journal_mode = OFF; PRAGMA synchronous = OFF; PRAGMA cache_size = -32000; PRAGMA temp_store = MEMORY;")
+        try buildSearchText(d)
+        try buildIndexes(d)
+        try d.exec("PRAGMA user_version = \(preparedVersion)")
+    }
+
+    /// Doplní to, co starší verze aplikace v datech nepřipravila (jednou po aktualizaci aplikace).
+    private static func upgrade(_ d: SQLiteDB) throws {
+        let version = (try d.scalar("PRAGMA user_version") as? Int) ?? 0
+        guard version < preparedVersion else { return }
+        let tables = Set(try d.query("SELECT name FROM sqlite_master WHERE type = 'table'").compactMap { $0["name"] as? String })
+        guard tables.contains("products") else { return }
+        // Verze se zapíše až na konci, takže přerušená příprava se příště provede celá znovu.
         let cols = try d.query("PRAGMA table_info(products)").compactMap { $0["name"] as? String }
-        if !cols.contains("search") { try d.exec("ALTER TABLE products ADD COLUMN search TEXT") }
-        // Klíčová slova: kromě názvu, značky a kategorie se hledá i v parametrech ("li-ion", "18 v", "dub")
-        let rows = try d.query("""
-            SELECT p.sku, p.name, p.brand, p.cat2, p.cat3, p.ean,
+        if cols.contains("search") {
+            // text už starší verze připravila ve sloupci products.search – jen se přesune do úzké tabulky
+            try d.transaction {
+                try d.exec("""
+                    DROP TABLE IF EXISTS psearch;
+                    CREATE TABLE psearch(id INTEGER PRIMARY KEY, text TEXT);
+                    INSERT INTO psearch SELECT rowid, search FROM products WHERE price IS NOT NULL AND search IS NOT NULL ORDER BY rowid;
+                    """)
+            }
+        } else {
+            try buildSearchText(d)
+        }
+        try buildIndexes(d)
+        try d.exec("PRAGMA user_version = \(preparedVersion)")
+    }
+
+    /// Klíčová slova: kromě názvu, značky a kategorie se hledá i v parametrech ("li-ion", "18 v", "dub").
+    /// Text je bez diakritiky a malými písmeny, v úzké tabulce mimo products (tabulka produktů
+    /// tak zůstává malá a její procházení rychlé).
+    private static func buildSearchText(_ d: SQLiteDB) throws {
+        var folder = FastFold()
+        var ids = ContiguousArray<Int64>()
+        var ends = ContiguousArray<Int>()
+        var bytes = ContiguousArray<UInt8>()
+        bytes.reserveCapacity(16 << 20)
+        var text = ""
+        try d.each("""
+            SELECT p.rowid, p.name, p.brand, p.cat2, p.cat3, p.sku, p.ean,
                    (SELECT GROUP_CONCAT(av.value, ' ') FROM product_attrs pa JOIN attr_values av ON av.id = pa.vid
                     WHERE pa.sku = p.sku) AS params
-            FROM products p
-            """)
-        let updates: [[Any?]] = rows.map { r in
-            let text = ["name", "brand", "cat2", "cat3", "sku", "ean", "params"].compactMap { r[$0] as? String }.joined(separator: " ")
-            return [fold(text), r["sku"]]
+            FROM products p WHERE p.price IS NOT NULL ORDER BY p.rowid
+            """) { stmt in
+            text.removeAll(keepingCapacity: true)
+            var first = true
+            for col in 1...7 where sqlite3_column_type(stmt, Int32(col)) == SQLITE_TEXT {
+                guard let c = sqlite3_column_text(stmt, Int32(col)) else { continue }
+                if !first { text.append(" ") }
+                first = false
+                text.append(String(cString: c))
+            }
+            folder.fold(text, into: &bytes)
+            ids.append(sqlite3_column_int64(stmt, 0))
+            ends.append(bytes.count)
         }
         try d.transaction {
-            try d.runMany("UPDATE products SET search = ? WHERE sku = ?", updates)
+            try d.exec("DROP TABLE IF EXISTS psearch; CREATE TABLE psearch(id INTEGER PRIMARY KEY, text TEXT);")
+            var i = 0
+            try bytes.withUnsafeBufferPointer { all in
+                try d.insertText("INSERT INTO psearch(id, text) VALUES(?, ?)") {
+                    guard i < ids.count else { return nil }
+                    let start = i == 0 ? 0 : ends[i - 1]
+                    defer { i += 1 }
+                    return (ids[i], UnsafeBufferPointer(rebasing: all[start..<ends[i]]))
+                }
+            }
         }
+    }
+
+    /// Indexy pro nejčastější pohledy: řazení bez třídění celé tabulky a počítání filtrů jen z indexu.
+    private static func buildIndexes(_ d: SQLiteDB) throws {
         try d.exec("""
-            CREATE INDEX IF NOT EXISTS p_cat ON products(cat1, cat2, cat3);
-            CREATE INDEX IF NOT EXISTS p_brand ON products(brand);
+            DROP INDEX IF EXISTS p_cat;
+            DROP INDEX IF EXISTS p_brand;
+            DROP INDEX IF EXISTS p_disc;
+            DROP INDEX IF EXISTS stock_store;
+            CREATE INDEX IF NOT EXISTS p_cat2 ON products(cat1, cat2, cat3, brand, labels, price);
+            CREATE INDEX IF NOT EXISTS p_brand2 ON products(brand, price);
+            CREATE INDEX IF NOT EXISTS p_labels ON products(labels) WHERE price IS NOT NULL;
             CREATE INDEX IF NOT EXISTS p_price ON products(price);
-            CREATE INDEX IF NOT EXISTS p_disc ON products(real_discount);
+            CREATE INDEX IF NOT EXISTS p_rel ON products(rank DESC, COALESCE(real_discount, 0) DESC, name, sku) WHERE price IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS p_disc2 ON products(COALESCE(real_discount, 0) DESC, COALESCE(drop_pct, 0) DESC, sku) WHERE price IS NOT NULL;
             CREATE INDEX IF NOT EXISTS p_changed ON products(price_changed_at);
+            CREATE INDEX IF NOT EXISTS p_seen ON products(first_seen DESC, rank DESC, sku) WHERE price IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS p_created ON products(created DESC, sku) WHERE price IS NOT NULL;
+            CREATE INDEX IF NOT EXISTS p_catrank ON products(cat1, rank DESC, sku) WHERE price IS NOT NULL;
             CREATE INDEX IF NOT EXISTS pa_vid ON product_attrs(vid, sku);
             CREATE INDEX IF NOT EXISTS av_code ON attr_values(code, value);
-            CREATE INDEX IF NOT EXISTS stock_store ON stock(store, sku);
             ANALYZE;
             """)
     }
@@ -120,6 +219,14 @@ actor LocalEngine {
     func handleJSON(method: String, path: String, query: [String: String], body: Data?) throws -> Data {
         let b = try body.flatMap { try JSONSerialization.jsonObject(with: $0) as? [String: Any] }
         return try JSONSerialization.data(withJSONObject: try handle(method: method, path: path, query: query, body: b))
+    }
+
+    private let decoder = JSONDecoder()
+
+    /// Vyřídí dotaz a odpověď rovnou převede na typ pro obrazovku. Převod běží tady v jádru
+    /// (mimo hlavní vlákno), takže rozhraní při načítání nezadrhává.
+    func handleDecoded<T: Decodable>(_ type: T.Type, path: String, query: [String: String]) throws -> T {
+        try decoder.decode(T.self, from: try handleJSON(method: "GET", path: path, query: query, body: nil))
     }
 
     func handle(method: String, path: String, query: [String: String], body: [String: Any]?) throws -> Any {
@@ -250,7 +357,7 @@ actor LocalEngine {
         if let lc = info("last_change"), !lc.isEmpty { out["last_change"] = lc }
         out["last_run"] = ["id": 1, "finished": info("last_run") ?? "", "started": info("generated_at") ?? ""]
         out["watched_drops"] = try db.scalar("""
-            SELECT COUNT(*) FROM u.watch w JOIN products p ON p.sku = w.sku
+            SELECT COUNT(*) FROM u.watch w CROSS JOIN products p ON p.sku = w.sku
             WHERE p.price < w.added_price OR (w.target IS NOT NULL AND p.price <= w.target)
             """) ?? 0
         if let v = info("server_version") { out["version"] = v }
@@ -263,11 +370,15 @@ actor LocalEngine {
         (q[key] ?? "").split(separator: "|").map(String.init).filter { !$0.isEmpty }
     }
 
-    private func buildWhere(_ q: [String: String], skip: Set<String> = []) -> (String, [Any?]) {
+    private func buildWhere(_ q: [String: String], skip: Set<String> = []) throws -> (String, [Any?]) {
         var w = ["p.price IS NOT NULL"]
         var a: [Any?] = []
         let r = resolve(q)
-        if r.any, !r.tokens.isEmpty {
+        if !r.tokens.isEmpty, caps.psearch {
+            // slova se najdou v paměti a odpovídající produkty čekají v pomocné tabulce
+            try ensureHits(tokens: r.tokens, any: r.any)
+            w.append(Self.hitsClause)
+        } else if r.any, !r.tokens.isEmpty {
             w.append("(" + r.tokens.map { _ in "p.search LIKE ?" }.joined(separator: " OR ") + ")")
             a += r.tokens.map { "%\($0)%" }
         } else {
@@ -353,11 +464,7 @@ actor LocalEngine {
         p.online_in_stock, p.unit_price, p.unit, p.rating, p.prev_price, p.price_changed_at, p.drop_pct, p.cat3, p.dims
         """
 
-    private var itemCols: String {
-        Self.baseItemCols + (caps.active ? ", p.active, p.last_price" : ", 1 AS active, NULL AS last_price")
-            + (caps.ratingCount ? ", p.rating_count" : ", NULL AS rating_count")
-            + (caps.platforms ? ", (SELECT x.body FROM platforms x WHERE x.sku = p.sku) AS body_only" : ", NULL AS body_only")
-    }
+    private var itemCols: String { itemColsSQL }
 
     private func itemsFor(_ rows: [[String: Any]], store: String?) throws -> [[String: Any]] {
         guard !rows.isEmpty else { return [] }
@@ -428,9 +535,109 @@ actor LocalEngine {
     }
 
     private func count(_ tokens: [String], any: Bool = false) throws -> Int {
+        if caps.psearch { return try match(tokens: tokens, any: any).rows.count }
         let w = tokens.map { _ in "search LIKE ?" }.joined(separator: any ? " OR " : " AND ")
         return (try data().scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND (\(w))",
                                   tokens.map { "%\($0)%" }) as? Int) ?? 0
+    }
+
+    // MARK: - hledání slov v paměti
+
+    private static let hitsClause = "p.rowid IN (SELECT id FROM temp.hits)"
+
+    private func loadSearchIndex() throws -> SearchIndex {
+        if let searchIndex { return searchIndex }
+        let index = SearchIndex(capacity: 16 << 20, rows: 110_000)
+        try data().each("SELECT id, text FROM psearch ORDER BY id") { stmt in
+            let n = Int(sqlite3_column_bytes(stmt, 1))
+            index.append(id: sqlite3_column_int64(stmt, 0), text: UnsafeBufferPointer(start: sqlite3_column_text(stmt, 1), count: n))
+        }
+        searchIndex = index
+        return index
+    }
+
+    /// Řádky indexu obsahující slovo. Slova se znaky _ a % (v LIKE zástupné) hledá databáze, aby se výsledek nelišil.
+    private func rows(matching token: String, in index: SearchIndex) throws -> ContiguousArray<Int32> {
+        if SearchIndex.isPlain(token) { return index.rows(containing: token) }
+        let ids = try data().query("SELECT id FROM psearch WHERE text LIKE ? ORDER BY id", ["%\(token)%"]).compactMap { ($0["id"] as? Int).map(Int64.init) }
+        return index.rows(forIDs: ids)
+    }
+
+    /// Produkty obsahující všechna slova (nebo kterékoli, s počtem shod). Poslední výsledek se pamatuje,
+    /// protože jedno hledání se ptá několikrát na totéž (počet, stránka, filtry).
+    private func match(tokens: [String], any: Bool) throws -> (key: String, rows: ContiguousArray<Int32>, counts: [UInt8]?) {
+        let key = (any ? "|" : "&") + tokens.joined(separator: "\n")
+        if let lastMatch, lastMatch.key == key { return lastMatch }
+        let index = try loadSearchIndex()
+        var result: (key: String, rows: ContiguousArray<Int32>, counts: [UInt8]?)
+        if any {
+            var per = [UInt8](repeating: 0, count: index.count)
+            for tok in tokens { for r in try rows(matching: tok, in: index) { per[Int(r)] &+= 1 } }
+            var rows = ContiguousArray<Int32>()
+            var counts: [UInt8] = []
+            for (i, c) in per.enumerated() where c > 0 { rows.append(Int32(i)); counts.append(c) }
+            result = (key, rows, counts)
+        } else {
+            var rows = try self.rows(matching: tokens[0], in: index)
+            for tok in tokens.dropFirst() where !rows.isEmpty {
+                if SearchIndex.isPlain(tok) {
+                    rows = index.filter(rows, containing: tok)
+                } else {
+                    let other = Set(try self.rows(matching: tok, in: index))
+                    rows = ContiguousArray(rows.filter { other.contains($0) })
+                }
+            }
+            result = (key, rows, nil)
+        }
+        lastMatch = result
+        return result
+    }
+
+    /// Naplní temp.hits produkty pro daná slova (jen když tam už nejsou z předchozího dotazu).
+    private func ensureHits(tokens: [String], any: Bool) throws {
+        let m = try match(tokens: tokens, any: any)
+        try fillHits(key: m.key, rows: m.rows, counts: m.counts)
+    }
+
+    private func fillHits(key: String, rows: ContiguousArray<Int32>, counts: [UInt8]?) throws {
+        if hitsKey == key { return }
+        let db = try data()
+        let index = try loadSearchIndex()
+        hitsKey = nil
+        try db.exec("DELETE FROM temp.hits")
+        var ids = ContiguousArray<Int64>()
+        ids.reserveCapacity(rows.count)
+        for r in rows { ids.append(index.ids[Int(r)]) }
+        try ids.withUnsafeBufferPointer { idp in
+            if let counts {
+                try counts.withUnsafeBufferPointer { cp in
+                    try db.insertPairs("INSERT INTO temp.hits(id, n) VALUES(?, ?)", ids: idp, counts: cp)
+                }
+            } else {
+                try db.insertPairs("INSERT INTO temp.hits(id) VALUES(?)", ids: idp, counts: nil)
+            }
+        }
+        hitsKey = key
+    }
+
+    private static func cacheKey(_ w: String, _ a: [Any?], hits: String?) -> String {
+        var key = w
+        for v in a { key += "\u{1}"; if let v { key += "\(v)" } else { key += "\u{2}" } }
+        if w.contains("temp.hits") { key += "\u{3}" + (hits ?? "") }
+        return key
+    }
+
+    /// Počet produktů pro filtr. Mezi staženími dat se nemění, takže se při stránkování nepočítá znovu
+    /// (výjimkou jsou filtry závislé na datech uživatele, ty se počítají vždy).
+    private func total(_ w: String, _ a: [Any?]) throws -> Int {
+        let db = try data()
+        if w.contains("u.") { return (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0 }
+        let key = Self.cacheKey(w, a, hits: hitsKey)
+        if let hit = countCache[key] { return hit }
+        let n = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
+        if countCache.count > 300 { countCache.removeAll() }
+        countCache[key] = n
+        return n
     }
 
     private func computeResolve(raw: String, tokens: [String]) throws -> Resolved {
@@ -465,13 +672,18 @@ actor LocalEngine {
         let page = max(1, Int(q["page"] ?? "1") ?? 1)
         let order = Self.sorts[q["sort"] ?? "relevance"] ?? Self.sorts["relevance"]!
         let store = (q["store"].flatMap { $0.isEmpty ? nil : $0 }) ?? setting("store")
-        let (w, a) = buildWhere(q)
-        let total = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
+        let (w, a) = try buildWhere(q)
+        let total = try total(w, a)
         let r = resolve(q)
         var orderSQL = order, orderArgs: [Any?] = []
         if r.any, (q["sort"] ?? "relevance") == "relevance" {
-            orderSQL = "(" + r.tokens.map { _ in "(p.search LIKE ?)" }.joined(separator: " + ") + ") DESC, " + order
-            orderArgs = r.tokens.map { "%\($0)%" }
+            if caps.psearch {
+                // počet nalezených slov je už spočítaný v pomocné tabulce
+                orderSQL = "(SELECT h.n FROM temp.hits h WHERE h.id = p.rowid) DESC, " + order
+            } else {
+                orderSQL = "(" + r.tokens.map { _ in "(p.search LIKE ?)" }.joined(separator: " + ") + ") DESC, " + order
+                orderArgs = r.tokens.map { "%\($0)%" }
+            }
         }
         let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(orderSQL) LIMIT ? OFFSET ?",
                                 a + orderArgs + [Self.pageSize, (page - 1) * Self.pageSize])
@@ -487,42 +699,56 @@ actor LocalEngine {
         let db = try data()
         var f: [String: Any] = [:]
         let level = q["cat2"] != nil ? "cat3" : q["cat1"] != nil ? "cat2" : "cat1"
-        var (w, a) = buildWhere(q)
+        var (w, a) = try buildWhere(q)
+        // Filtry pro stejný dotaz se mezi staženími dat nemění (kromě těch závislých na hlídaných produktech).
+        let cacheKey = Self.cacheKey(w, a, hits: hitsKey) + "\u{4}" + q.keys.filter { $0.hasPrefix("a_") || ["brand", "pmin", "pmax", "label", "cat1", "cat2", "cat3"].contains($0) }
+            .sorted().map { "\($0)=\(q[$0] ?? "")" }.joined(separator: "\u{5}")
+        let cacheable = !w.contains("u.")
+        if cacheable, let hit = facetsCache[cacheKey] { return hit }
         f["categories"] = ["level": level, "values": try db.query(
-            "SELECT p.\(level) AS value, COUNT(*) AS count FROM products p WHERE \(w) AND p.\(level) IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 60", a)]
-        (w, a) = buildWhere(q, skip: ["brand"])
+            "SELECT p.\(level) AS value, COUNT(*) AS count FROM products p WHERE \(w) AND p.\(level) IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 60", a)]
+        (w, a) = try buildWhere(q, skip: ["brand"])
         f["brands"] = try db.query(
-            "SELECT p.brand AS value, COUNT(*) AS count FROM products p WHERE \(w) AND p.brand IS NOT NULL GROUP BY 1 ORDER BY 2 DESC LIMIT 300", a)
-        (w, a) = buildWhere(q, skip: ["price"])
+            "SELECT p.brand AS value, COUNT(*) AS count FROM products p WHERE \(w) AND p.brand IS NOT NULL GROUP BY 1 ORDER BY 2 DESC, 1 LIMIT 300", a)
+        (w, a) = try buildWhere(q, skip: ["price"])
         let pr = try db.query("SELECT MIN(p.price) AS min, MAX(p.price) AS max FROM products p WHERE \(w)", a).first ?? [:]
         f["price"] = ["min": pr["min"] ?? NSNull(), "max": pr["max"] ?? NSNull()]
-        (w, a) = buildWhere(q, skip: ["label"])
-        // všechny štítky jedním průchodem tabulkou místo dotazu pro každý štítek
-        let sums = Self.labelOrder.enumerated().map { i, key in "SUM(p.labels LIKE '%,\(key),%') AS l\(i)" }.joined(separator: ", ")
-        let counts = try db.query("SELECT \(sums) FROM products p WHERE \(w)", a).first ?? [:]
+        (w, a) = try buildWhere(q, skip: ["label"])
+        // Štítky: produkty se seskupí podle (pár set různých) kombinací štítků a spočítá se z nich,
+        // místo devíti porovnání LIKE u každého produktu.
+        let combos = try db.query("SELECT p.labels AS labels, COUNT(*) AS c FROM products p WHERE \(w) GROUP BY p.labels", a)
         var labels: [[String: Any]] = []
-        for (i, key) in Self.labelOrder.enumerated() {
-            let c = counts["l\(i)"] as? Int ?? 0
+        for key in Self.labelOrder {
+            let needle = ",\(key),"
+            var c = 0
+            for g in combos {
+                if let l = g["labels"] as? String, l.range(of: needle, options: .caseInsensitive) != nil { c += g["c"] as? Int ?? 0 }
+            }
             if c > 0 { labels.append(["value": key, "label": Self.labels[key]!, "count": c]) }
         }
         f["labels"] = labels
         var attrs: [[String: Any]] = []
         if q["cat2"] != nil || q["cat3"] != nil {
-            (w, a) = buildWhere(q)
-            let total = max(1, (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 1)
+            (w, a) = try buildWhere(q)
+            let total = max(1, try self.total(w, a))
+            // nejdřív se spočítají hodnoty (podle čísla hodnoty), teprve pak se k nim dohledá název
             let rows = try db.query("""
-                SELECT av.code AS code, av.value AS value, COUNT(*) AS c FROM product_attrs pa
-                JOIN attr_values av ON av.id = pa.vid JOIN products p ON p.sku = pa.sku
-                WHERE \(w) GROUP BY pa.vid
+                SELECT av.code AS code, av.value AS value, g.c AS c FROM (
+                    SELECT pa.vid AS vid, COUNT(*) AS c FROM products p JOIN product_attrs pa ON pa.sku = p.sku
+                    WHERE \(w) GROUP BY pa.vid) g
+                JOIN attr_values av ON av.id = g.vid ORDER BY g.vid
                 """, a)
             var groups: [String: [(String, Int)]] = [:]
             for r in rows {
                 guard let code = r["code"] as? String, let value = r["value"] as? String else { continue }
                 groups[code, default: []].append((value, r["c"] as? Int ?? 0))
             }
-            var labelOf: [String: String] = [:]
-            for r in try db.query("SELECT code, label FROM attrs") {
-                if let c = r["code"] as? String { labelOf[c] = r["label"] as? String ?? c }
+            var labelOf: [String: String] = attrLabels ?? [:]
+            if attrLabels == nil {
+                for r in try db.query("SELECT code, label FROM attrs") {
+                    if let c = r["code"] as? String { labelOf[c] = r["label"] as? String ?? c }
+                }
+                attrLabels = labelOf
             }
             var cands: [(sel: Bool, cov: Double, code: String, vals: [(String, Int)])] = []
             for (code, vals) in groups {
@@ -533,12 +759,18 @@ actor LocalEngine {
             }
             cands.sort { ($0.sel ? 0 : 1, -$0.cov) < ($1.sel ? 0 : 1, -$1.cov) }
             for c in cands.prefix(10) {
-                let sorted = c.vals.sorted { Self.numericKey($0.0) < Self.numericKey($1.0) }
+                // klíč pro řazení se spočítá pro každou hodnotu jednou, ne při každém porovnání
+                let keyed = c.vals.map { (key: Self.numericKey($0.0), value: $0.0, count: $0.1) }
+                let sorted = keyed.sorted { $0.key < $1.key }
                 attrs.append(["code": c.code, "label": labelOf[c.code]!,
-                              "values": sorted.prefix(60).map { ["value": $0.0, "count": $0.1] }])
+                              "values": sorted.prefix(60).map { ["value": $0.value, "count": $0.count] }])
             }
         }
         f["attrs"] = attrs
+        if cacheable {
+            if facetsCache.count > 60 { facetsCache.removeAll() }
+            facetsCache[cacheKey] = f
+        }
         return f
     }
 
@@ -568,6 +800,9 @@ actor LocalEngine {
     private func categories(_ q: [String: String]) throws -> [String: Any] {
         let db = try data()
         let c1 = q["cat1"], c2 = q["cat2"]
+        // kategorie se mezi staženími dat nemění
+        let cacheKey = (c1 ?? "") + "\u{1}" + (c2 ?? "") + "\u{1}" + (c1 == nil ? "0" : c2 == nil ? "1" : "2")
+        if let hit = categoriesCache[cacheKey] { return hit }
         var level = "cat1", filter = "1 = 1"
         var child: String? = "cat2"
         var args: [Any?] = []
@@ -579,12 +814,23 @@ actor LocalEngine {
         let base = "price IS NOT NULL AND \(filter) AND \(level) IS NOT NULL"
         var values = try db.query("SELECT \(level) AS value, COUNT(*) AS count FROM products WHERE \(base) GROUP BY 1 ORDER BY 2 DESC", args)
         var images: [String: [String]] = [:]
-        for r in try db.query("""
-            SELECT value, image FROM (SELECT \(level) AS value, image,
-              ROW_NUMBER() OVER (PARTITION BY \(level) ORDER BY rank DESC, sku) AS rn
-              FROM products WHERE \(base) AND image IS NOT NULL) WHERE rn <= 3
-            """, args) {
-            if let v = r["value"] as? String, let img = r["image"] as? String { images[v, default: []].append(img) }
+        if level == "cat1" {
+            // první úroveň: tři nejlépe hodnocené produkty každého oddělení přímo z indexu (cat1, rank, sku),
+            // místo očíslování všech produktů okenní funkcí
+            for row in values {
+                guard let v = row["value"] as? String else { continue }
+                for r in try db.query("SELECT image FROM products WHERE price IS NOT NULL AND cat1 = ? AND image IS NOT NULL ORDER BY rank DESC, sku LIMIT 3", [v]) {
+                    if let img = r["image"] as? String { images[v, default: []].append(img) }
+                }
+            }
+        } else {
+            for r in try db.query("""
+                SELECT value, image FROM (SELECT \(level) AS value, image,
+                  ROW_NUMBER() OVER (PARTITION BY \(level) ORDER BY rank DESC, sku) AS rn
+                  FROM products WHERE \(base) AND image IS NOT NULL) WHERE rn <= 3
+                """, args) {
+                if let v = r["value"] as? String, let img = r["image"] as? String { images[v, default: []].append(img) }
+            }
         }
         var subs: [String: [String]] = [:]
         if let child {
@@ -600,7 +846,10 @@ actor LocalEngine {
         }
         let total = try db.scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND \(filter)", args) as? Int ?? 0
         let discounted = try db.scalar("SELECT COUNT(*) FROM products WHERE price IS NOT NULL AND COALESCE(real_discount, 0) > 0 AND \(filter)", args) as? Int ?? 0
-        return ["level": level, "values": values, "total": total, "discounted": discounted]
+        let out: [String: Any] = ["level": level, "values": values, "total": total, "discounted": discounted]
+        if categoriesCache.count > 200 { categoriesCache.removeAll() }
+        categoriesCache[cacheKey] = out
+        return out
     }
 
     private struct SuggestIndex {
@@ -615,13 +864,13 @@ actor LocalEngine {
         var cats: [SuggestIndex.Category] = []
         for lvl in ["cat3", "cat2"] {
             let group = lvl == "cat3" ? "cat1, cat2, cat3" : "cat1, cat2"
-            for r in try db.query("SELECT cat1, cat2, \(lvl == "cat3" ? "cat3" : "NULL AS cat3"), COUNT(*) AS count FROM products WHERE \(lvl) IS NOT NULL GROUP BY \(group)") {
+            for r in try db.query("SELECT cat1, cat2, \(lvl == "cat3" ? "cat3" : "NULL AS cat3"), COUNT(*) AS count FROM products WHERE \(lvl) IS NOT NULL GROUP BY \(group) ORDER BY \(group)") {
                 guard let name = r[lvl] as? String else { continue }
                 cats.append(.init(row: ["cat1": r["cat1"] ?? NSNull(), "cat2": r["cat2"] ?? NSNull(), "cat3": r["cat3"] ?? NSNull(),
                                         "name": name, "count": r["count"] ?? 0], folded: Self.fold(name)))
             }
         }
-        let brands = try db.query("SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL")
+        let brands = try db.query("SELECT DISTINCT brand FROM products WHERE brand IS NOT NULL ORDER BY brand")
             .compactMap { $0["brand"] as? String }.map { ($0, Self.fold($0)) }
         let index = SuggestIndex(categories: cats, brands: brands)
         suggestIndex = index
@@ -632,15 +881,29 @@ actor LocalEngine {
         let db = try data()
         let t = Self.fold(text).trimmingCharacters(in: .whitespaces)
         guard t.count >= 2 else { return ["products": [], "categories": [], "brands": []] }
-        var products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
+        var products: [[String: Any]]
+        let fromHits = "SELECT sku, name, price, image FROM products p WHERE price IS NOT NULL AND \(Self.hitsClause) ORDER BY rank DESC, p.rowid LIMIT 6"
+        if caps.psearch {
+            // celý napsaný text jako jedna fráze (stejně jako dřív LIKE '%text%')
+            let index = try loadSearchIndex()
+            try fillHits(key: "p" + t, rows: try rows(matching: t, in: index), counts: nil)
+            products = try db.query(fromHits)
+        } else {
+            products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND search LIKE ? ORDER BY rank DESC LIMIT 6", ["%\(t)%"])
+        }
         var corrected: String?
         if products.isEmpty {
             let r = resolve(["q": text])
             if let c = r.corrected, !r.tokens.isEmpty {
                 corrected = c
-                let w = r.tokens.map { _ in "search LIKE ?" }.joined(separator: r.any ? " OR " : " AND ")
-                products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND (\(w)) ORDER BY rank DESC LIMIT 6",
-                                        r.tokens.map { "%\($0)%" })
+                if caps.psearch {
+                    try ensureHits(tokens: r.tokens, any: r.any)
+                    products = try db.query(fromHits)
+                } else {
+                    let w = r.tokens.map { _ in "search LIKE ?" }.joined(separator: r.any ? " OR " : " AND ")
+                    products = try db.query("SELECT sku, name, price, image FROM products WHERE price IS NOT NULL AND (\(w)) ORDER BY rank DESC LIMIT 6",
+                                            r.tokens.map { "%\($0)%" })
+                }
             }
         }
         let index = try loadSuggestIndex(db)
@@ -658,9 +921,10 @@ actor LocalEngine {
         let store = setting("store") ?? "888"
         let sname = (try db.scalar("SELECT name FROM stores WHERE code = ?", [store]) as? String) ?? store
         var sections: [[String: Any]] = []
+        // vychází se z (malé) tabulky hlídaných, ne z procházení všech produktů
         let watched = try db.query("""
-            SELECT \(itemCols) FROM products p WHERE p.price IS NOT NULL
-            AND p.sku IN (SELECT w.sku FROM u.watch w WHERE p.price < w.added_price) ORDER BY p.drop_pct DESC LIMIT 12
+            SELECT \(itemCols) FROM u.watch w CROSS JOIN products p ON p.sku = w.sku
+            WHERE p.price IS NOT NULL AND p.price < w.added_price ORDER BY p.drop_pct DESC, p.rowid LIMIT 12
             """)
         if !watched.isEmpty {
             sections.append(["title": "Hlídané, které zlevnily", "query": ["watch": "1"], "items": try itemsFor(watched, store: store)])
@@ -681,7 +945,7 @@ actor LocalEngine {
                 q[k] = "\(v)".replacingOccurrences(of: "{store}", with: store).replacingOccurrences(of: "{store_name}", with: sname)
             }
             if q["restock_days"] != nil, !caps.restock { continue }
-            let (w, a) = buildWhere(q)
+            let (w, a) = try buildWhere(q)
             let order = Self.sorts[q["sort"] ?? "relevance"] ?? Self.sorts["relevance"]!
             let rows = try db.query("SELECT \(itemCols) FROM products p WHERE \(w) ORDER BY \(order) LIMIT 12", a)
             if !rows.isEmpty {
@@ -729,10 +993,18 @@ actor LocalEngine {
         return p
     }
 
+    /// Seznam platforem z dat (JSON se rozebere jednou, ne u každého detailu produktu).
+    private func platformList0() throws -> [[String: Any]]? {
+        if let platformDefs { return platformDefs }
+        guard let raw = info("platforms"),
+              let list = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [[String: Any]] else { return nil }
+        platformDefs = list
+        return list
+    }
+
     /// Platformy s počtem produktů (pro výběr „moje aku platformy“).
     private func platformList() throws -> [[String: Any]] {
-        guard caps.platforms, let raw = info("platforms"),
-              let list = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [[String: Any]] else { return [] }
+        guard caps.platforms, let list = try platformList0() else { return [] }
         var counts: [String: Int] = [:]
         for r in try data().query("""
             SELECT x.platform AS platform, COUNT(*) AS n FROM platforms x JOIN products p ON p.sku = x.sku
@@ -751,7 +1023,7 @@ actor LocalEngine {
         guard let x = try db.query("SELECT platform, kind, body, model FROM platforms WHERE sku = ?", [sku]).first,
               let id = x["platform"] as? String else { return }
         var title = id
-        if let raw = info("platforms"), let list = try JSONSerialization.jsonObject(with: Data(raw.utf8)) as? [[String: Any]],
+        if let list = try platformList0(),
            let e = list.first(where: { $0["id"] as? String == id }) { title = e["title"] as? String ?? id }
         let body = x["body"] as? Int
         p["platform"] = ["id": id, "title": title, "kind": x["kind"] ?? NSNull(), "body": body ?? NSNull()] as [String: Any]
@@ -819,7 +1091,7 @@ actor LocalEngine {
         guard let db else { return [] }
         let rows = try db.query("""
             SELECT \(itemCols), w.added, w.added_price, w.target FROM u.watch w
-            JOIN products p ON p.sku = w.sku ORDER BY (p.price < w.added_price) DESC, w.added DESC
+            CROSS JOIN products p ON p.sku = w.sku ORDER BY (p.price < w.added_price) DESC, w.added DESC, p.rowid
             """)
         return try itemsFor(rows, store: setting("store"))
     }
@@ -834,9 +1106,9 @@ actor LocalEngine {
             if let db {
                 var withSince = query
                 withSince["since"] = r["checked"] as? String ?? Self.today()
-                var (w, a) = buildWhere(withSince)
+                var (w, a) = try buildWhere(withSince)
                 fresh = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
-                (w, a) = buildWhere(query)
+                (w, a) = try buildWhere(query)
                 total = (try db.scalar("SELECT COUNT(*) FROM products p WHERE \(w)", a) as? Int) ?? 0
             }
             out.append(["id": r["id"] ?? 0, "name": r["name"] ?? "", "query": query, "fresh": fresh, "total": total])
