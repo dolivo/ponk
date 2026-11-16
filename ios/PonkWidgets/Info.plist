@@ -11,6 +11,10 @@
 	<key>CFBundlePackageType</key><string>$(PRODUCT_BUNDLE_PACKAGE_TYPE)</string>
 	<key>CFBundleShortVersionString</key><string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key><string>$(CURRENT_PROJECT_VERSION)</string>
+	<key>UIAppFonts</key>
+	<array>
+		<string>BarlowSemiCondensed-Regular.ttf</string><string>BarlowSemiCondensed-SemiBold.ttf</string><string>BarlowSemiCondensed-ExtraBold.ttf</string>
+	</array>
 	<key>NSExtension</key>
 	<dict>
 		<key>NSExtensionPointIdentifier</key><string>com.apple.widgetkit-extension</string>

@@ -102,6 +102,7 @@ struct RootView: View {
                 await app.loadMeta()
                 if await DataStore.shared.update(force: false) { await app.loadMeta() }
                 await PurchaseSync.refresh(api: app.api) // koupené produkty z účtu Bauhaus
+                await WidgetBridge.refreshNow()
             } else {
                 try? await Task.sleep(for: .seconds(1.5)) // až po úvodní animaci
                 showSetup = true
@@ -113,7 +114,10 @@ struct RootView: View {
                     if await DataStore.shared.update(force: false) { await app.loadMeta() }
                 }
             }
-            if phase == .background { DataStore.scheduleBackgroundRefresh() }
+            if phase == .background {
+                DataStore.scheduleBackgroundRefresh()
+                Task { await WidgetBridge.refreshNow() }   // widget Můj Bauhaus
+            }
         }
         // odkazy z widgetu a živé aktivity: ponk://product/<kód>, ponk://list
         .onOpenURL { url in
@@ -129,6 +133,18 @@ struct RootView: View {
             case "list":
                 tab = .watch
                 paths[.watch] = NavigationPath()
+            case "watch":
+                // widget Můj Bauhaus: hlídané produkty
+                UserDefaults.standard.set(1, forKey: "myStuffSection")
+                tab = .watch
+                paths[.watch] = NavigationPath()
+            case "shop":
+                // widget Můj Bauhaus: tlačítko Nakupuji (ponk://shop/<id seznamu>)
+                if let id = Int(url.lastPathComponent) { UserDefaults.standard.set(id, forKey: "currentList") }
+                UserDefaults.standard.set(0, forKey: "myStuffSection")
+                tab = .watch
+                paths[.watch] = NavigationPath()
+                ShareInbox.shared.startShopping = true
             case "import":
                 // sdílený nákupní seznam: otevře Seznam a zeptá se, jestli ho načíst
                 guard let p = ListShare.decode(url) else { return }

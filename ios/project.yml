@@ -9,7 +9,7 @@ options:
 settings:
   base:
     SWIFT_VERSION: "5.0"
-    MARKETING_VERSION: "0.24.1"
+    MARKETING_VERSION: "0.25.0"
     CURRENT_PROJECT_VERSION: "1"
 targets:
   Ponk:
@@ -39,6 +39,13 @@ targets:
     sources:
       - path: PonkWidgets
       - path: Ponk/Shared
+      # písmo aplikace i ve widgetu Můj Bauhaus
+      - path: Ponk/Resources/Fonts/BarlowSemiCondensed-Regular.ttf
+        buildPhase: resources
+      - path: Ponk/Resources/Fonts/BarlowSemiCondensed-SemiBold.ttf
+        buildPhase: resources
+      - path: Ponk/Resources/Fonts/BarlowSemiCondensed-ExtraBold.ttf
+        buildPhase: resources
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: cz.ponk.app.widgets

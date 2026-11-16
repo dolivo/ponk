@@ -73,4 +73,6 @@ enum ListShare {
 final class ShareInbox {
     static let shared = ShareInbox()
     var pending: ListShare.Payload?
+    /// Klepnutí na Nakupuji ve widgetu: po načtení seznamu spustit živou aktivitu.
+    var startShopping = false
 }

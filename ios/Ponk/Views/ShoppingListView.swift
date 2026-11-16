@@ -136,6 +136,7 @@ struct ShoppingListView: View {
             Text("Zapni pro Ponk živé aktivity v Nastavení iOS → Ponk. Když je aplikace nainstalovaná bez widgetů, živá aktivita není k dispozici.")
         }
         .onChange(of: currentID) { _, _ in Task { await load() } }
+        .onChange(of: inbox.startShopping) { _, start in if start { Task { await load() } } }
         .sensoryFeedback(.selection, trigger: tick)
         .alert(promptTitle, isPresented: Binding(get: { prompt != nil }, set: { if !$0 { prompt = nil } })) {
             TextField(promptPlaceholder, text: $promptText)
@@ -480,6 +481,7 @@ struct ShoppingListView: View {
             syncActivity()
             shareURL = await makeShareURL(d.id)
             await loadLive(d, force: live)
+            if inbox.startShopping { startShoppingFromWidget(d) }
         } catch is CancellationError {
         } catch {
             self.error = error.localizedDescription
@@ -572,6 +574,17 @@ struct ShoppingListView: View {
             return ShoppingActivityAttributes.Stop(id: e.id, title: e.title, shelf: s?.shelf, field: s?.field,
                                                    qty: "\(qtyText(e.qty)) ks")
         }
+    }
+
+    /// Tlačítko Nakupuji ve widgetu Můj Bauhaus: stejné jako tlačítko v seznamu.
+    private func startShoppingFromWidget(_ d: ShoppingListDetail) {
+        inbox.startShopping = false
+        guard !ShoppingActivityController.shared.isRunning else { shopping = true; return }
+        guard d.items.contains(where: { !$0.isChecked }) else { return }
+        ShoppingActivityController.shared.start(listName: d.name, storeName: app.storeName(d.store),
+                                                stops: activityStops(d), total: d.items.count)
+        shopping = ShoppingActivityController.shared.isRunning
+        if !shopping { activityError = true }
     }
 
     /// Po každé změně seznamu (odškrtnutí, nové regály) posune živou aktivitu.

@@ -241,6 +241,7 @@ actor LocalEngine {
             }
             return ["ok": true]
         case ("GET", "watch"): return ["items": try watchItems()]
+        case ("GET", "widget"): return try widgetSnapshot(listID: query["list"].flatMap(Int.init))
         case ("POST", "watch"):
             let sku = body?["sku"] as? String ?? ""
             let price = try data().scalar("SELECT price FROM products WHERE sku = ?", [sku])
@@ -1094,6 +1095,72 @@ actor LocalEngine {
             CROSS JOIN products p ON p.sku = w.sku ORDER BY (p.price < w.added_price) DESC, w.added DESC, p.rowid
             """)
         return try itemsFor(rows, store: setting("store"))
+    }
+
+    /// Data pro widget „Můj Bauhaus“ (WidgetSnapshot): hlídané, aktuální seznam, novinky skladem.
+    private func widgetSnapshot(listID: Int?) throws -> [String: Any] {
+        let user = try userDB()
+        let store = setting("store") ?? "888"
+        var out: [String: Any] = ["storeName": store, "watchTotal": 0, "watchDropped": 0, "restockCount": 0, "restock": []]
+        func product(_ r: [String: Any], drop: Double? = nil) -> [String: Any] {
+            var p: [String: Any] = ["sku": r["sku"] ?? "", "name": r["name"] ?? ""]
+            if let v = num(r["price"]) { p["price"] = v }
+            if let v = r["image"] as? String { p["image"] = v }
+            if let drop { p["drop"] = drop }
+            return p
+        }
+        if let db {
+            if let name = try db.scalar("SELECT name FROM stores WHERE code = ?", [store]) as? String { out["storeName"] = name }
+            // hlídané: kolik zlevnilo od přidání a které nejvíc (v Kč)
+            let watched = try db.query("""
+                SELECT p.sku, p.name, p.price, p.image, w.added_price FROM u.watch w
+                CROSS JOIN products p ON p.sku = w.sku ORDER BY w.added DESC, p.rowid
+                """)
+            out["watchTotal"] = watched.count
+            var dropped = 0
+            var top: ([String: Any], Double)?
+            for r in watched {
+                guard let price = num(r["price"]), let added = num(r["added_price"]), price < added else { continue }
+                dropped += 1
+                if top == nil || added - price > top!.1 { top = (r, added - price) }
+            }
+            out["watchDropped"] = dropped
+            if let top { out["watchTop"] = product(top.0, drop: top.1) } else if let first = watched.first { out["watchTop"] = product(first) }
+            // novinky skladem ve zvolené prodejně (poslední den, kdy nějaké byly)
+            if caps.restock, let day = try db.scalar("SELECT MAX(day) FROM restock WHERE store = ?", [store]) as? String {
+                out["restockDay"] = day
+                out["restockCount"] = (try db.scalar("""
+                    SELECT COUNT(*) FROM restock r JOIN products p ON p.sku = r.sku
+                    WHERE r.store = ? AND r.day = ? AND p.price IS NOT NULL
+                    """, [store, day]) as? Int) ?? 0
+                out["restock"] = try db.query("""
+                    SELECT p.sku, p.name, p.price, p.image FROM restock r JOIN products p ON p.sku = r.sku
+                    WHERE r.store = ? AND r.day = ? AND p.price IS NOT NULL
+                    ORDER BY (p.image IS NULL), p.rank DESC, p.sku LIMIT 3
+                    """, [store, day]).map { product($0) }
+            }
+        }
+        // nákupní seznam otevřený v aplikaci (jinak první)
+        let lists = try user.query("SELECT id, name FROM \(t("lists")) ORDER BY id")
+        if let l = lists.first(where: { ($0["id"] as? Int) == listID }) ?? lists.first, let id = l["id"] as? Int {
+            let items = try user.query("SELECT sku, qty, checked FROM \(t("list_items")) WHERE list_id = ?", [id])
+            var prices: [String: Double] = [:]
+            let skus = items.compactMap { $0["sku"] as? String }
+            if let db, !skus.isEmpty {
+                let marks = Array(repeating: "?", count: skus.count).joined(separator: ",")
+                for r in try db.query("SELECT sku, price FROM products WHERE sku IN (\(marks))", skus) {
+                    if let s = r["sku"] as? String, let v = num(r["price"]) { prices[s] = v }
+                }
+            }
+            var sum = 0.0
+            for i in items {
+                if let sku = i["sku"] as? String, let v = prices[sku] { sum += v * (num(i["qty"]) ?? 1) }
+            }
+            out["list"] = ["id": id, "name": l["name"] as? String ?? "Nákupní seznam",
+                           "done": items.filter { ($0["checked"] as? Int ?? 0) != 0 }.count,
+                           "total": items.count, "sum": sum]
+        }
+        return out
     }
 
     private func savedItems() throws -> [[String: Any]] {

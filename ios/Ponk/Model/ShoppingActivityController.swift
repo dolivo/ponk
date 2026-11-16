@@ -58,5 +58,6 @@ final class ShoppingActivityController {
             }
         }
         NotificationCenter.default.post(name: .ponkListChanged, object: nil)
+        WidgetBridge.refresh()
     }
 }

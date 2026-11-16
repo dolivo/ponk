@@ -5,6 +5,7 @@ import WidgetKit
 struct PonkWidgets: WidgetBundle {
     var body: some Widget {
         DealsWidget()
+        MineWidget()
         ShoppingLiveActivity()
     }
 }

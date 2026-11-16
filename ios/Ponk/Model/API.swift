@@ -53,6 +53,7 @@ final class PonkAPI {
         }
         let bodyData = try body.map { try JSONSerialization.data(withJSONObject: $0) }
         _ = try await DataStore.shared.engine.handleJSON(method: method, path: path, query: [:], body: bodyData)
+        WidgetBridge.refresh()   // hlídané, seznam nebo prodejna se mohly změnit
         if method == "POST", path == "watch" { DataStore.shared.requestNotifications() }
     }
 }

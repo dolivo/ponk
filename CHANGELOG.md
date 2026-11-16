@@ -3,6 +3,17 @@
 Verze aplikace je v souboru `VERSION` a zvyšuje se s každou změnou.
 Číslo sestavení iOS aplikace (build) přiděluje GitHub Actions.
 
+## 0.25.0
+- **Nový widget „Můj Bauhaus“** (velký): hlídané produkty (kolik zlevnilo a o kolik nejvíc),
+  aktuální nákupní seznam (kolik je v košíku, součet a tlačítko **Nakupuji**, které otevře
+  seznam a spustí nákup na zamčené obrazovce), dnešní největší zlevnění a novinky skladem
+  ve zvolené prodejně.
+- Střední velikost ukazuje **Nově skladem** ve tvé prodejně se třemi produkty.
+- Data widgetu posílá aplikace po každé změně hlídaných nebo seznamu, po stažení nových dat
+  a při odchodu z aplikace. Předávají se přes Klíčenku (aplikace i widget jsou podepsané
+  stejným profilem), nepotřebují zvláštní oprávnění v certifikátu.
+- Widget používá písmo aplikace (Barlow Semi Condensed).
+
 ## 0.24.1
 Jen zrychlení – funkce ani vzhled se nemění.
 - **Hledání** už neprochází databázi řádek po řádku: texty všech produktů jsou v jednom bloku

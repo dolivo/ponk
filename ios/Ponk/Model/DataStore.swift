@@ -218,5 +218,6 @@ final class DataStore {
         Self.scheduleBackgroundRefresh()
         if !hasData { await start() }
         await update(force: false)
+        await WidgetBridge.refreshNow()
     }
 }
