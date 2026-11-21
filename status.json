@@ -1,0 +1,129 @@
+{
+ "schema": 4,
+ "generated_at": "2026-11-21T11:56:22Z",
+ "last_run": "2026-11-21T12:56:16",
+ "first_day": "2026-10-02",
+ "server_version": "0.25.0",
+ "last_change": "2026-11-21",
+ "raw_size": 74825728,
+ "files": {
+  "ponk-mobile.sqlite.xz": {
+   "size": 9348060,
+   "sha256": "223bfecb8bf906bc0b91380f234e71b8e27bdf23a362d6aac6e067d7e9cbc5e7"
+  },
+  "ponk-mobile.sqlite.deflate": {
+   "size": 16018349,
+   "sha256": "e57ea467788580e8f2def098459b5f3ed727cb08201d6f79603b5ccee83e18a8"
+  }
+ },
+ "products": 97131,
+ "price_history": 101567,
+ "stock": 394001,
+ "product_attrs": 468429,
+ "restock": 16055,
+ "store_map_labels": 444,
+ "vocab": 24180,
+ "banners": 34,
+ "extras": 91608,
+ "platforms": 1131,
+ "top_drops": [
+  {
+   "sku": "10091741",
+   "name": "Krause ClimTec Stabiliz\u00e1tor le\u0161en\u00ed",
+   "price": 2120.0,
+   "prev": 3150.0,
+   "pct": 32.7,
+   "image": "/1/1/119285_p_img.webp"
+  },
+  {
+   "sku": "10091734",
+   "name": "Krause Sada pojezdov\u00fdch kol",
+   "price": 3250.0,
+   "prev": 4150.0,
+   "pct": 21.7,
+   "image": "/1/1/119284_p_img.webp"
+  },
+  {
+   "sku": "28737823",
+   "name": "Krause ClimTec N\u00e1stavba le\u0161en\u00ed 2. poschod\u00ed",
+   "price": 13990.0,
+   "prev": 17400.0,
+   "pct": 19.6,
+   "image": "/2/3/239858_p_img.webp"
+  },
+  {
+   "sku": "10091693",
+   "name": "Krause ClimTec Le\u0161en\u00ed z\u00e1kladn\u00ed",
+   "price": 10350.0,
+   "prev": 12800.0,
+   "pct": 19.1,
+   "image": "/1/2/122738_p_img.webp"
+  },
+  {
+   "sku": "28737814",
+   "name": "Krause ClimTec N\u00e1stavba le\u0161en\u00ed 1. poschod\u00ed",
+   "price": 12550.0,
+   "prev": 15390.000000000002,
+   "pct": 18.5,
+   "image": "/2/3/239857_p_img.webp"
+  },
+  {
+   "sku": "34639023",
+   "name": "Lepidlo na PVC UZIN KE 50 Roll&Tack",
+   "price": 2490.0,
+   "prev": 2990.0,
+   "pct": 16.7,
+   "image": "/4/8/485950_p_img.webp"
+  }
+ ],
+ "top_deals": [
+  {
+   "sku": "21607882",
+   "name": "Black+Decker N\u00e1hradn\u00ed n\u016f\u017e A6307",
+   "price": 259.0,
+   "prev": null,
+   "pct": 95,
+   "image": "/8/0/80381_p_img.webp"
+  },
+  {
+   "sku": "30244160",
+   "name": "Kalviva Soma Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279858_p_img.webp"
+  },
+  {
+   "sku": "30280924",
+   "name": "Kalviva Volvo Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279841_p_img.webp"
+  },
+  {
+   "sku": "27096150",
+   "name": "Obklad Polaris Dark",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139123_p_img.webp"
+  },
+  {
+   "sku": "27097719",
+   "name": "Obklad Polaris Light",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139133_p_img.webp"
+  },
+  {
+   "sku": "27092583",
+   "name": "Obklad Polaris Hexagon Mix",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139134_p_img.webp"
+  }
+ ]
+}
