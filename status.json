@@ -1,0 +1,129 @@
+{
+ "schema": 4,
+ "generated_at": "2026-11-28T12:28:28Z",
+ "last_run": "2026-11-28T13:28:24",
+ "first_day": "2026-10-02",
+ "server_version": "0.25.0",
+ "last_change": "2026-11-28",
+ "raw_size": 75063296,
+ "files": {
+  "ponk-mobile.sqlite.xz": {
+   "size": 9383728,
+   "sha256": "98599493bafe497dcb2e1160c245bdb40818dbd01a7f4e359b4e88759c19ec84"
+  },
+  "ponk-mobile.sqlite.deflate": {
+   "size": 16071867,
+   "sha256": "4c00945fe1e94a0039fa8e3000105d8342b27a037af956569142e2019339ba93"
+  }
+ },
+ "products": 97434,
+ "price_history": 102331,
+ "stock": 395187,
+ "product_attrs": 470240,
+ "restock": 16342,
+ "store_map_labels": 444,
+ "vocab": 24224,
+ "banners": 35,
+ "extras": 91911,
+ "platforms": 1136,
+ "top_drops": [
+  {
+   "sku": "12550125",
+   "name": "Auto\u017e\u00e1rovka Cool Blue Intense",
+   "price": 245.0,
+   "prev": 439.0,
+   "pct": 44.2,
+   "image": "/1/8/183246_p_img.webp"
+  },
+  {
+   "sku": "12551045",
+   "name": "Original Line Auto\u017e\u00e1rovka",
+   "price": 125.0,
+   "prev": 189.0,
+   "pct": 33.9,
+   "image": "/1/0/101121_p_img.webp"
+  },
+  {
+   "sku": "30100846",
+   "name": "Bosch Professional Termokamera GTC 400 C",
+   "price": 22590.0,
+   "prev": 25990.0,
+   "pct": 13.1,
+   "image": "/3/0/303679_p_img.webp"
+  },
+  {
+   "sku": "31721198",
+   "name": "K\u00e4rcher Vysokotlak\u00fd \u010disti\u010d K 3 CLASSIC CAR",
+   "price": 2900.0,
+   "prev": 3290.0,
+   "pct": 11.9,
+   "image": "/3/1/314715_p_img.webp"
+  },
+  {
+   "sku": "31349873",
+   "name": "Bosch Aku \u0161roubov\u00e1k IXO 7 s vodov\u00e1hou",
+   "price": 1050.0,
+   "prev": 1190.0,
+   "pct": 11.8,
+   "image": "/2/9/292018_p_img.webp"
+  },
+  {
+   "sku": "31470311",
+   "name": "Far Tools Kart\u00e1\u010dov\u00e1 bruska REX 120C",
+   "price": 3300.0,
+   "prev": 3590.0000000000005,
+   "pct": 8.1,
+   "image": "/3/0/306045_p_img.webp"
+  }
+ ],
+ "top_deals": [
+  {
+   "sku": "21607882",
+   "name": "Black+Decker N\u00e1hradn\u00ed n\u016f\u017e A6307",
+   "price": 259.0,
+   "prev": null,
+   "pct": 95,
+   "image": "/8/0/80381_p_img.webp"
+  },
+  {
+   "sku": "30244160",
+   "name": "Kalviva Soma Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279858_p_img.webp"
+  },
+  {
+   "sku": "30280924",
+   "name": "Kalviva Volvo Dve\u0159n\u00ed kov\u00e1n\u00ed",
+   "price": 190.00000000000003,
+   "prev": null,
+   "pct": 76,
+   "image": "/2/7/279841_p_img.webp"
+  },
+  {
+   "sku": "27096150",
+   "name": "Obklad Polaris Dark",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139123_p_img.webp"
+  },
+  {
+   "sku": "27097719",
+   "name": "Obklad Polaris Light",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139133_p_img.webp"
+  },
+  {
+   "sku": "27092583",
+   "name": "Obklad Polaris Hexagon Mix",
+   "price": 148.5,
+   "prev": null,
+   "pct": 75,
+   "image": "/1/3/139134_p_img.webp"
+  }
+ ]
+}
